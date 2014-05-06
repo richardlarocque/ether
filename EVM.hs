@@ -1,11 +1,15 @@
-module Main where
+module EVM where
 
 import Data.Word
 import Data.LargeWord
+import Data.Maybe
+import qualified Data.Map as M
+import Control.Monad
 
 type Gas = Integer
 
 data Instruction =
+  -- 0s: Stop and Arithmetic Operations
     STOP
   | ADD
   | MUL
@@ -17,18 +21,33 @@ data Instruction =
   | EXP
   | NEG
 
+  -- 50s: Stack, Memory, Storage and Flow Operations
+  | POP
+  | DUP
+  | SWAP
+  -- And all the rest...
+
+  -- f0s: System operations
+  -- | CREATE
+  -- | CALL
+  | RETURN
   | SUICIDE
 
   | INVALID -- pseudo-value
   deriving Eq
 
-stackReq :: Instruction -> Int
-stackReq STOP = 0
-stackReq ADD = 2
-stackReq MUL = 2
-stackReq SUB = 2
-stackReq DIV = 2
-stackReq INVALID = 0
+stackGet :: Instruction -> Int
+stackGet STOP = 0
+stackGet ADD = 2
+stackGet MUL = 2
+stackGet SUB = 2
+stackGet DIV = 2
+stackGet MOD = 2
+stackGet EXP = 2
+stackGet NEG = 1
+stackGet RETURN = 2
+stackGet SUICIDE = 1
+stackGet INVALID = 0
 
 -- Appendix B: Fee schedule
 fee_step = 0
@@ -44,7 +63,8 @@ fee_memory = 1
 fee_txdata = 5
 fee_transaction = 500
 
-data Memory = Memory
+type Memory = M.Map Word256 Word256
+type MemSlice = [Word256]
 
 type Stack = [Word256]
 
@@ -53,7 +73,7 @@ stackAtLeast n s = drop (n-1) s /= []
 
 data Address = Address
 
-data Ether = Ether
+type Ether = Integer
 
 data SystemState = SystemState
 
@@ -65,6 +85,13 @@ data MachineState = MS {
   memory :: Memory,
   stack :: Stack
 }
+
+memRange :: MachineState -> (Word256, Word256) -> MemSlice
+memRange ms (startAddr, endAddr) =
+  map (memWord ms) [startAddr .. endAddr]
+
+memWord :: MachineState -> Word256 -> Word256
+memWord ms addr = fromMaybe 0 $ M.lookup addr (memory ms)
 
 data ExecutionEnvironment = EE {
   owner :: Address,
@@ -96,20 +123,26 @@ getNextInstr (EE {code=is}) (MS {pc=counter}) =
     then is !! counter
     else STOP
 
--- Equation 87
-checkException :: ExecutionEnvironment -> MachineState -> Bool
-checkException ee ms =
-  let w = getNextInstr ee ms in
-  (gas ms < getNextCost ee ms) ||
-  (INVALID == w) ||
-  (stackAtLeast (stackReq w) (stack ms))
+data RunTimeError =
+  OutOfGas
+  | InvalidInstruction
+  | StackUnderflow
+  deriving Eq
 
-checkHalt :: ExecutionEnvironment -> MachineState -> Maybe ByteArray
+-- Equation 87
+checkException :: ExecutionEnvironment -> MachineState -> Maybe RunTimeError
+checkException ee ms =
+  let w = getNextInstr ee ms in msum $
+  [ if gas ms < getNextCost ee ms then Just OutOfGas else Nothing,
+    if INVALID == w then Just InvalidInstruction else Nothing,
+    if stackAtLeast (stackGet w) (stack ms) then Just StackUnderflow else Nothing ]
+
+checkHalt :: ExecutionEnvironment -> MachineState -> Maybe MemSlice
 checkHalt ee ms =
-  -- TODO: Do something about H return
   let instr = getNextInstr ee ms in
   case instr of
-    -- RETURN -> ...
+    RETURN -> let startAddr:endAddr:_ = stack ms in
+              Just $ memRange ms (startAddr, endAddr)
     STOP -> Just []
     SUICIDE -> Just []
     _ -> Nothing
@@ -127,6 +160,7 @@ execInstruction ee ms =
   where divOp a 0 = 0
         divOp a b = a `div` b
 
+execSimpleUnOp :: ExecutionEnvironment-> MachineState -> (Word256 -> Word256) -> MachineState
 execSimpleUnOp ee ms op =
   let gas' = (gas ms) - getNextCost ee ms
       pc' = (pc ms) + 1
@@ -135,6 +169,7 @@ execSimpleUnOp ee ms op =
       memory' = memory ms in
   MS { gas=gas', pc=pc', memory=memory', stack=stack' }
 
+execSimpleBinOp :: ExecutionEnvironment-> MachineState -> (Word256 -> Word256 -> Word256) -> MachineState
 execSimpleBinOp ee ms op =
   let gas' = (gas ms) - getNextCost ee ms
       pc' = (pc ms) + 1
@@ -143,5 +178,22 @@ execSimpleBinOp ee ms op =
       memory' = memory ms in
   MS { gas=gas', pc=pc', memory=memory', stack=stack' }
 
-main = do
-  print "Hello!"
+initialMachineState :: ExecutionEnvironment -> MachineState
+initialMachineState ee = MS {
+  gas= (value ee) `div` (gasPrice ee),
+  pc=0,
+  memory=M.empty,
+  stack=[]
+}
+
+runVM :: ExecutionEnvironment -> Either RunTimeError MemSlice
+runVM ee = runVM' ee (initialMachineState ee)
+
+runVM' :: ExecutionEnvironment -> MachineState -> Either RunTimeError MemSlice
+runVM' ee ms = do
+  case checkException ee ms of
+    Just error -> Left error
+    Nothing -> Right ()
+  case checkHalt ee ms of
+    Just result -> Right result
+    Nothing -> runVM' ee (execInstruction ee ms)
