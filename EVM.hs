@@ -15,25 +15,103 @@ data Instruction =
   | MUL
   | SUB
   | DIV
-  -- TODO: Find some way to implement SDIV
+  | SDIV
   | MOD
-  -- TODO: SMOD
+  | SMOD
   | EXP
   | NEG
+  | LT
+  | GT
+  | SLT
+  | SGT
+  | EQ
+  | NOT
+  | AND
+  | OR
+  | XOR
+  | BYTE
+
+  -- 20s: SHA3
+  | SHA3
+
+  -- 30s: Environment
+  | ADDRESS
+  | BALANCE
+  | ORIGIN
+  | CALLER
+  | CALLVALUE
+  | CALLDATALOAD
+  | CALLDATASIZE
+  | CALLDATACOPY
+  | CODESIZE
+  | CODECOPY
+  | GASPRICE
+
+  -- 40s: Block Information
+  | PREVHASH
+  | COINBASE
+  | TIMESTAMP
+  | NUMBER
+  | DIFFICULTY
+  | GASLIMIT
 
   -- 50s: Stack, Memory, Storage and Flow Operations
   | POP
   | DUP
   | SWAP
-  -- And all the rest...
+  | MLOAD
+  | MSTORE
+  | MSTORE8
+  | SLOAD
+  | SSTORE
+  | JUMP
+  | JUMPI
+  | PC
+  | MSIZE
+  | GAS
+
+  -- 60s and 70s: Push Operations
+  | PUSH1
+  | PUSH2
+  | PUSH3
+  | PUSH4
+  | PUSH5
+  | PUSH6
+  | PUSH7
+  | PUSH8
+  | PUSH9
+  | PUSH10
+  | PUSH11
+  | PUSH12
+  | PUSH13
+  | PUSH14
+  | PUSH15
+  | PUSH16
+  | PUSH17
+  | PUSH18
+  | PUSH19
+  | PUSH20
+  | PUSH21
+  | PUSH22
+  | PUSH23
+  | PUSH24
+  | PUSH25
+  | PUSH26
+  | PUSH27
+  | PUSH28
+  | PUSH29
+  | PUSH30
+  | PUSH31
+  | PUSH32
 
   -- f0s: System operations
-  -- | CREATE
-  -- | CALL
+  | CREATE
+  | CALL
   | RETURN
   | SUICIDE
 
-  | INVALID -- pseudo-value
+  -- Non-existent sort of value
+  | INVALID
   deriving Eq
 
 stackGet :: Instruction -> Int
@@ -48,6 +126,63 @@ stackGet NEG = 1
 stackGet RETURN = 2
 stackGet SUICIDE = 1
 stackGet INVALID = 0
+
+fromOpcode :: Word8 -> Intstruction
+fromOpcode STOP
+fromOpcode ADD
+fromOpcode MUL
+fromOpcode SUB
+fromOpcode DIV
+fromOpcode MOD
+fromOpcode EXP
+fromOpcode NEG
+
+-- 50s: Stack, Memory, Storage and Flow Operations
+fromOpcode POP
+fromOpcode DUP
+fromOpcode SWAP
+
+-- 60s and 70s: Push Operations
+fromOpcode PUSH1
+fromOpcode PUSH2
+fromOpcode PUSH3
+fromOpcode PUSH4
+fromOpcode PUSH5
+fromOpcode PUSH6
+fromOpcode PUSH7
+fromOpcode PUSH8
+fromOpcode PUSH9
+fromOpcode PUSH10
+fromOpcode PUSH11
+fromOpcode PUSH12
+fromOpcode PUSH13
+fromOpcode PUSH14
+fromOpcode PUSH15
+fromOpcode PUSH16
+fromOpcode PUSH17
+fromOpcode PUSH18
+fromOpcode PUSH19
+fromOpcode PUSH20
+fromOpcode PUSH21
+fromOpcode PUSH22
+fromOpcode PUSH23
+fromOpcode PUSH24
+fromOpcode PUSH25
+fromOpcode PUSH26
+fromOpcode PUSH27
+fromOpcode PUSH28
+fromOpcode PUSH29
+fromOpcode PUSH30
+fromOpcode PUSH31
+fromOpcode PUSH32
+
+-- f0s: System operations
+fromOpcode CREATE
+fromOpcode CALL
+fromOpcode RETURN
+fromOpcode SUICIDE
+
+fromOpcode INVALID -- pseudo-value
 
 -- Appendix B: Fee schedule
 fee_step = 0
@@ -92,6 +227,10 @@ memRange ms (startAddr, endAddr) =
 
 memWord :: MachineState -> Word256 -> Word256
 memWord ms addr = fromMaybe 0 $ M.lookup addr (memory ms)
+
+codeRange :: MachineState -> (Word256, Word256) -> MemSlice
+codeRange ms (startAddr, endAddr) =
+  map (codeByte ms) 
 
 data ExecutionEnvironment = EE {
   owner :: Address,
@@ -150,41 +289,83 @@ checkHalt ee ms =
 execInstruction :: ExecutionEnvironment -> MachineState -> MachineState
 execInstruction ee ms =
   case (getNextInstr ee ms) of
-    ADD -> execSimpleBinOp ee ms (+)
-    MUL -> execSimpleBinOp ee ms (*)
-    SUB -> execSimpleBinOp ee ms (-)
-    DIV -> execSimpleBinOp ee ms (divOp)
-    MOD -> execSimpleBinOp ee ms (mod)
+    ADD -> execStackBinaryOp ee ms (+)
+    MUL -> execStackBinaryOp ee ms (*)
+    SUB -> execStackBinaryOp ee ms (-)
+    DIV -> execStackBinaryOp ee ms (safeDiv)
+    MOD -> execStackBinaryOp ee ms (mod)
     --EXP -> execSimpleBinOp ee ms (**)
-    NEG -> execSimpleUnOp ee ms (*(-1))
-  where divOp a 0 = 0
-        divOp a b = a `div` b
+    NEG -> execStackUnaryOp ee ms (*(-1))
 
-execSimpleUnOp :: ExecutionEnvironment-> MachineState -> (Word256 -> Word256) -> MachineState
-execSimpleUnOp ee ms op =
-  let gas' = (gas ms) - getNextCost ee ms
-      pc' = (pc ms) + 1
-      a:ws = stack ms
-      stack' = (op a):ws
-      memory' = memory ms in
-  MS { gas=gas', pc=pc', memory=memory', stack=stack' }
+    POP -> execStackOp ee ms tail
+    DUP -> execStackOp ee ms (\(x:xs) -> x:x:xs)
+    SWAP -> execStackOp ee ms (\(a:b:xs) -> b:a:xs)
 
-execSimpleBinOp :: ExecutionEnvironment-> MachineState -> (Word256 -> Word256 -> Word256) -> MachineState
-execSimpleBinOp ee ms op =
-  let gas' = (gas ms) - getNextCost ee ms
-      pc' = (pc ms) + 1
-      a:b:ws = stack ms
-      stack' = (a `op` b):ws
-      memory' = memory ms in
-  MS { gas=gas', pc=pc', memory=memory', stack=stack' }
+    PUSH1 ->  execPushOp ee ms  1
+    PUSH2 ->  execPushOp ee ms  2
+    PUSH3 ->  execPushOp ee ms  3
+    PUSH4 ->  execPushOp ee ms  4
+    PUSH5 ->  execPushOp ee ms  5
+    PUSH6 ->  execPushOp ee ms  6
+    PUSH7 ->  execPushOp ee ms  7
+    PUSH8 ->  execPushOp ee ms  8
+    PUSH9 ->  execPushOp ee ms  9
+    PUSH10 -> execPushOp ee ms 10
+    PUSH11 -> execPushOp ee ms 11
+    PUSH12 -> execPushOp ee ms 12
+    PUSH13 -> execPushOp ee ms 13
+    PUSH14 -> execPushOp ee ms 14
+    PUSH15 -> execPushOp ee ms 15
+    PUSH16 -> execPushOp ee ms 16
+    PUSH17 -> execPushOp ee ms 17
+    PUSH18 -> execPushOp ee ms 18
+    PUSH19 -> execPushOp ee ms 19
+    PUSH20 -> execPushOp ee ms 20
+    PUSH21 -> execPushOp ee ms 21
+    PUSH22 -> execPushOp ee ms 22
+    PUSH23 -> execPushOp ee ms 23
+    PUSH24 -> execPushOp ee ms 24
+    PUSH25 -> execPushOp ee ms 25
+    PUSH26 -> execPushOp ee ms 26
+    PUSH27 -> execPushOp ee ms 27
+    PUSH28 -> execPushOp ee ms 28
+    PUSH29 -> execPushOp ee ms 29
+    PUSH30 -> execPushOp ee ms 30
+    PUSH31 -> execPushOp ee ms 31
+    PUSH32 -> execPushOp ee ms 32
+
+safeDiv a 0 = 0
+safeDiv a b = a `div` b
+
+execStackOp :: ExecutionEnvironment-> MachineState -> (Stack -> Stack) -> MachineState
+execStackOp ee ms f = MS {
+    gas= (gas ms) - getNextCost ee ms,
+    pc= (pc ms) + 1,
+    memory= memory ms
+    stack= f (stack ms),
+  }
+
+execStackUnaryOp :: ExecutionEnvironment-> MachineState -> (Word256 -> Word256) -> MachineState
+execStackUnaryOp ee ms f = execStackOp ee ms (\(x:xs) -> (f x):xs)
+
+execStackBinaryOp :: ExecutionEnvironment-> MachineState -> (Word256 -> Word256 -> Word256) -> MachineState
+execStackBinaryOp ee ms f = execStackOp ee ms (\(a:b:xs) -> (f a b):xs)
+
+execPushOp ee ms n = MS {
+  gas= (gas ms) - getNextCost ee ms,
+  pc= (pc ms) + 1 + n
+  memory= memory ms
+  stack= codeRange
+}
+  
 
 initialMachineState :: ExecutionEnvironment -> MachineState
 initialMachineState ee = MS {
-  gas= (value ee) `div` (gasPrice ee),
-  pc=0,
-  memory=M.empty,
-  stack=[]
-}
+    gas= (value ee) `div` (gasPrice ee),
+    pc=0,
+    memory=M.empty,
+    stack=[]
+  }
 
 runVM :: ExecutionEnvironment -> Either RunTimeError MemSlice
 runVM ee = runVM' ee (initialMachineState ee)
