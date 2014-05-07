@@ -2,4 +2,4 @@
 *.o
 *.swp
 tags
-evm_unittest
+dist
