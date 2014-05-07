@@ -1,4 +1,9 @@
-module EVM where
+module Ethereum.EVM.VM where
+
+import Ethereum.EVM.InstructionSet
+import Ethereum.SimpleTypes
+
+import qualified Ethereum.EVM.FeeSchedule as Fee -- FIXME: Should not need this long run.
 
 import Data.Word
 import Data.LargeWord
@@ -6,213 +11,7 @@ import Data.Maybe
 import qualified Data.Map as M
 import Control.Monad
 
-type Gas = Integer
-
-data Instruction =
-  -- 0s: Stop and Arithmetic Operations
-    STOP
-  | ADD
-  | MUL
-  | SUB
-  | DIV
-  | SDIV
-  | MOD
-  | SMOD
-  | EXP
-  | NEG
-  | LT
-  | GT
-  | SLT
-  | SGT
-  | EQ
-  | NOT
-  | AND
-  | OR
-  | XOR
-  | BYTE
-
-  -- 20s: SHA3
-  | SHA3
-
-  -- 30s: Environment
-  | ADDRESS
-  | BALANCE
-  | ORIGIN
-  | CALLER
-  | CALLVALUE
-  | CALLDATALOAD
-  | CALLDATASIZE
-  | CALLDATACOPY
-  | CODESIZE
-  | CODECOPY
-  | GASPRICE
-
-  -- 40s: Block Information
-  | PREVHASH
-  | COINBASE
-  | TIMESTAMP
-  | NUMBER
-  | DIFFICULTY
-  | GASLIMIT
-
-  -- 50s: Stack, Memory, Storage and Flow Operations
-  | POP
-  | DUP
-  | SWAP
-  | MLOAD
-  | MSTORE
-  | MSTORE8
-  | SLOAD
-  | SSTORE
-  | JUMP
-  | JUMPI
-  | PC
-  | MSIZE
-  | GAS
-
-  -- 60s and 70s: Push Operations
-  | PUSH1
-  | PUSH2
-  | PUSH3
-  | PUSH4
-  | PUSH5
-  | PUSH6
-  | PUSH7
-  | PUSH8
-  | PUSH9
-  | PUSH10
-  | PUSH11
-  | PUSH12
-  | PUSH13
-  | PUSH14
-  | PUSH15
-  | PUSH16
-  | PUSH17
-  | PUSH18
-  | PUSH19
-  | PUSH20
-  | PUSH21
-  | PUSH22
-  | PUSH23
-  | PUSH24
-  | PUSH25
-  | PUSH26
-  | PUSH27
-  | PUSH28
-  | PUSH29
-  | PUSH30
-  | PUSH31
-  | PUSH32
-
-  -- f0s: System operations
-  | CREATE
-  | CALL
-  | RETURN
-  | SUICIDE
-
-  -- Non-existent sort of value
-  | INVALID
-  deriving Eq
-
-stackGet :: Instruction -> Int
-stackGet STOP = 0
-stackGet ADD = 2
-stackGet MUL = 2
-stackGet SUB = 2
-stackGet DIV = 2
-stackGet MOD = 2
-stackGet EXP = 2
-stackGet NEG = 1
-stackGet RETURN = 2
-stackGet SUICIDE = 1
-stackGet INVALID = 0
-
-fromOpcode :: Word8 -> Intstruction
-fromOpcode STOP
-fromOpcode ADD
-fromOpcode MUL
-fromOpcode SUB
-fromOpcode DIV
-fromOpcode MOD
-fromOpcode EXP
-fromOpcode NEG
-
--- 50s: Stack, Memory, Storage and Flow Operations
-fromOpcode POP
-fromOpcode DUP
-fromOpcode SWAP
-
--- 60s and 70s: Push Operations
-fromOpcode PUSH1
-fromOpcode PUSH2
-fromOpcode PUSH3
-fromOpcode PUSH4
-fromOpcode PUSH5
-fromOpcode PUSH6
-fromOpcode PUSH7
-fromOpcode PUSH8
-fromOpcode PUSH9
-fromOpcode PUSH10
-fromOpcode PUSH11
-fromOpcode PUSH12
-fromOpcode PUSH13
-fromOpcode PUSH14
-fromOpcode PUSH15
-fromOpcode PUSH16
-fromOpcode PUSH17
-fromOpcode PUSH18
-fromOpcode PUSH19
-fromOpcode PUSH20
-fromOpcode PUSH21
-fromOpcode PUSH22
-fromOpcode PUSH23
-fromOpcode PUSH24
-fromOpcode PUSH25
-fromOpcode PUSH26
-fromOpcode PUSH27
-fromOpcode PUSH28
-fromOpcode PUSH29
-fromOpcode PUSH30
-fromOpcode PUSH31
-fromOpcode PUSH32
-
--- f0s: System operations
-fromOpcode CREATE
-fromOpcode CALL
-fromOpcode RETURN
-fromOpcode SUICIDE
-
-fromOpcode INVALID -- pseudo-value
-
--- Appendix B: Fee schedule
-fee_step = 0
-fee_stop = 1
-fee_suicide = 0
-fee_sha3 = 20
-fee_sload = 20
-fee_sstore = 100
-fee_balance = 20
-fee_create = 100
-fee_call = 20
-fee_memory = 1
-fee_txdata = 5
-fee_transaction = 500
-
-type Memory = M.Map Word256 Word256
-type MemSlice = [Word256]
-
-type Stack = [Word256]
-
-stackAtLeast :: Int -> Stack -> Bool
-stackAtLeast n s = drop (n-1) s /= []
-
-data Address = Address
-
-type Ether = Integer
-
 data SystemState = SystemState
-
-type ByteArray = [Word8]
 
 data MachineState = MS {
   gas :: Gas,
@@ -228,9 +27,11 @@ memRange ms (startAddr, endAddr) =
 memWord :: MachineState -> Word256 -> Word256
 memWord ms addr = fromMaybe 0 $ M.lookup addr (memory ms)
 
+{-
 codeRange :: MachineState -> (Word256, Word256) -> MemSlice
 codeRange ms (startAddr, endAddr) =
-  map (codeByte ms) 
+  map (codeByte ms)
+-}
 
 data ExecutionEnvironment = EE {
   owner :: Address,
@@ -252,8 +53,8 @@ getInstructionCost ee ms =
   let instr = getNextInstr ee ms in
   case instr of
     -- TODO: Lots more to define.
-    STOP -> fee_stop
-    _ -> fee_step
+    STOP -> Fee.stop
+    _ -> Fee.step
 
 -- Equation 86
 getNextInstr :: ExecutionEnvironment -> MachineState -> Instruction
@@ -274,7 +75,11 @@ checkException ee ms =
   let w = getNextInstr ee ms in msum $
   [ if gas ms < getNextCost ee ms then Just OutOfGas else Nothing,
     if INVALID == w then Just InvalidInstruction else Nothing,
-    if stackAtLeast (stackGet w) (stack ms) then Just StackUnderflow else Nothing ]
+    if not $ stackAtLeast (stackPopCount w) (stack ms) then Just StackUnderflow else Nothing ]
+
+stackAtLeast :: Int -> Stack -> Bool
+stackAtLeast 0 _ = True
+stackAtLeast n s = drop (n-1) s /= []
 
 checkHalt :: ExecutionEnvironment -> MachineState -> Maybe MemSlice
 checkHalt ee ms =
@@ -301,6 +106,7 @@ execInstruction ee ms =
     DUP -> execStackOp ee ms (\(x:xs) -> x:x:xs)
     SWAP -> execStackOp ee ms (\(a:b:xs) -> b:a:xs)
 
+{-
     PUSH1 ->  execPushOp ee ms  1
     PUSH2 ->  execPushOp ee ms  2
     PUSH3 ->  execPushOp ee ms  3
@@ -333,6 +139,7 @@ execInstruction ee ms =
     PUSH30 -> execPushOp ee ms 30
     PUSH31 -> execPushOp ee ms 31
     PUSH32 -> execPushOp ee ms 32
+-}
 
 safeDiv a 0 = 0
 safeDiv a b = a `div` b
@@ -341,8 +148,8 @@ execStackOp :: ExecutionEnvironment-> MachineState -> (Stack -> Stack) -> Machin
 execStackOp ee ms f = MS {
     gas= (gas ms) - getNextCost ee ms,
     pc= (pc ms) + 1,
-    memory= memory ms
-    stack= f (stack ms),
+    memory= memory ms,
+    stack= f (stack ms)
   }
 
 execStackUnaryOp :: ExecutionEnvironment-> MachineState -> (Word256 -> Word256) -> MachineState
@@ -351,13 +158,14 @@ execStackUnaryOp ee ms f = execStackOp ee ms (\(x:xs) -> (f x):xs)
 execStackBinaryOp :: ExecutionEnvironment-> MachineState -> (Word256 -> Word256 -> Word256) -> MachineState
 execStackBinaryOp ee ms f = execStackOp ee ms (\(a:b:xs) -> (f a b):xs)
 
+{-
 execPushOp ee ms n = MS {
   gas= (gas ms) - getNextCost ee ms,
-  pc= (pc ms) + 1 + n
-  memory= memory ms
+  pc= (pc ms) + 1 + n,
+  memory= memory ms,
   stack= codeRange
 }
-  
+-}
 
 initialMachineState :: ExecutionEnvironment -> MachineState
 initialMachineState ee = MS {
