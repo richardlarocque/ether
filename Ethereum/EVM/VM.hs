@@ -99,11 +99,11 @@ checkException :: ExecutionEnvironment -> MachineState -> Maybe RunTimeError
 checkException ee ms =
         let w = nextOp ee ms
         in msum $ [
-                if gas ms < getNextCost ee ms
-                   then Just OutOfGas
-                   else Nothing,
                 if isNothing w
                    then Just InvalidInstruction
+                   else Nothing,
+                if gas ms < getNextCost ee ms
+                   then Just OutOfGas
                    else Nothing,
                 if isStackUnderflow (stackPopCount (fromJust w)) (stack ms)
                    then Just StackUnderflow
@@ -111,7 +111,7 @@ checkException ee ms =
                 ]
         where isStackUnderflow n s = case n of
                 0 -> False
-                x -> not.null $ drop (n-1) s
+                x -> null $ drop (n-1) s
 
 -- |Checks for normal halt as defined in section 9.4.2.
 checkHalt :: ExecutionEnvironment -> MachineState -> Maybe MemSlice
