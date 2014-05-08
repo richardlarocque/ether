@@ -20,6 +20,7 @@ import qualified Ethereum.EVM.FeeSchedule as Fee -- FIXME: Should not need this 
 
 import Data.Word
 import Data.LargeWord
+import Data.Array
 import Data.Maybe
 import qualified Data.Map as M
 import Control.Monad
@@ -29,14 +30,14 @@ data SystemState = SystemState
 -- |The machine state tuple defined in section 9.4.
 data MachineState = MS {
         gas :: Gas,
-        pc :: Int,
+        pc :: Integer,
         memory :: Memory,
         stack :: Stack
 }
 
 memRange :: MachineState -> (Word256, Word256) -> MemSlice
 memRange ms (startAddr, endAddr) =
-        map (memWord ms) [startAddr .. endAddr]
+        map (memWord ms) [startAddr..endAddr]
 
 memWord :: MachineState -> Word256 -> Word256
 memWord ms addr = fromMaybe 0 $ M.lookup addr (memory ms)
@@ -49,8 +50,22 @@ data ExecutionEnvironment = EE {
         input :: ByteArray,
         execCause :: Address,
         value :: Ether,
-        code :: [Instruction]
+        code :: Code
 }
+
+inBounds :: Ix i => i -> Array i e -> Bool
+inBounds index a = let (left,right) = bounds a
+                   in left <= index && index < right
+
+codeRange :: Code -> (Integer, Integer) -> [Word8]
+codeRange c (startAddr, endAddr) =
+        map (codeByte c) [startAddr..endAddr]
+
+codeByte :: Code -> Integer -> Word8
+codeByte c addr = if inBounds addr c
+                      then c ! addr
+                      else 0  -- FIXME: Is this right for PUSH?
+                              -- It's definitely not right for CODECOPY...
 
 getNextCost :: ExecutionEnvironment -> MachineState -> Gas
 getNextCost ee ms =
@@ -66,9 +81,9 @@ getInstructionCost ee ms =
 
 -- Equation 86
 nextOp :: ExecutionEnvironment -> MachineState -> Instruction
-nextOp (EE {code=is}) (MS {pc=counter}) =
-        if counter < length is
-           then is !! counter
+nextOp (EE {code=cs}) (MS {pc=counter}) =
+        if counter < (snd.bounds) cs
+           then fromOpcode $ cs ! counter
            else STOP
 
 data RunTimeError = OutOfGas
@@ -174,21 +189,24 @@ execStackBinaryOp :: ExecutionEnvironment-> MachineState ->
         (Word256 -> Word256 -> Word256) -> MachineState
 execStackBinaryOp ee ms f = execStackOp ee ms (\(a:b:xs) -> (f a b):xs)
 
-{-
 execPushOp ee ms n = MS {
-  gas= (gas ms) - getNextCost ee ms,
-  pc= (pc ms) + 1 + n,
-  memory= memory ms,
-  stack= codeRange
+        gas = (gas ms) - getNextCost ee ms,
+        pc = (pc ms) + 1 + n,
+        memory = memory ms,
+        stack = (wordToPush (code ee) (pc ms)):(stack ms)
 }
--}
+        where
+                wordToPush :: Code -> Integer -> Word256
+                wordToPush code pc = packBytes $ codeRange code (pc+1, pc+1+n)
+                packBytes :: [Word8] -> Word256
+                packBytes bs = foldr (\x a -> (a * 256) + (fromIntegral x)) (0 :: Word256) (bs :: [Word8])
 
 initialMachineState :: ExecutionEnvironment -> MachineState
 initialMachineState ee = MS {
-        gas= (value ee) `div` (gasPrice ee),
-        pc=0,
-        memory=M.empty,
-        stack=[]
+        gas = (value ee) `div` (gasPrice ee),
+        pc = 0,
+        memory = M.empty,
+        stack = []
 }
 
 runVM :: ExecutionEnvironment -> Either RunTimeError MemSlice

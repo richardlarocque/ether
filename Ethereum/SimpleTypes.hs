@@ -16,10 +16,12 @@ module Ethereum.SimpleTypes (
         Stack,
         Address(..),
         Ether,
-        ByteArray) where
+        ByteArray,
+        Code) where
 
-import Data.Word
+import Data.Array
 import Data.LargeWord
+import Data.Word
 import qualified Data.Map as M
 
 type Gas = Integer
@@ -29,3 +31,4 @@ type Stack = [Word256]
 data Address = Address
 type Ether = Integer
 type ByteArray = [Word8]
+type Code = Array Integer Word8
