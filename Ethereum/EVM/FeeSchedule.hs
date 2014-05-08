@@ -18,6 +18,7 @@ import Ethereum.SimpleTypes
 -- Appendix B: Fee schedule
 step, stop, suicide, sha3, sload, sstore, balance, create, call :: Gas
 memory, txdata, transaction :: Gas
+
 step = 0
 stop = 1
 suicide = 0

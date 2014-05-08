@@ -12,118 +12,117 @@ Translation of Ethereum Yellow Paper, Proof-of-Concept V, Appendix G.2
 -}
 
 module Ethereum.EVM.InstructionSet(
-  Instruction(..),
-  fromOpcode,
-  stackPopCount) where
+        Instruction(..),
+        fromOpcode,
+        stackPopCount) where
 
 import Data.Word
 
-data Instruction =
-  -- 0s: Stop and Arithmetic Operations
-    STOP
-  | ADD
-  | MUL
-  | SUB
-  | DIV
-  | SDIV
-  | MOD
-  | SMOD
-  | EXP
-  | NEG
-  | LT
-  | GT
-  | SLT
-  | SGT
-  | EQ
-  | NOT
-  | AND
-  | OR
-  | XOR
-  | BYTE
+-- | All the opcodes declared in Appendix G.2, plus INVALID as a placeholder.
+data Instruction = INVALID
+{- 0s: Stop and Arithmetic Operations -}
+    | STOP  
+    | ADD
+    | MUL
+    | SUB
+    | DIV
+    | SDIV
+    | MOD
+    | SMOD
+    | EXP
+    | NEG
+    | LT
+    | GT
+    | SLT
+    | SGT
+    | EQ
+    | NOT
+    | AND
+    | OR
+    | XOR
+    | BYTE
 
-  -- 20s: SHA3
-  | SHA3
+{- 20s: SHA3 -}
+    | SHA3
 
-  -- 30s: Environment
-  | ADDRESS
-  | BALANCE
-  | ORIGIN
-  | CALLER
-  | CALLVALUE
-  | CALLDATALOAD
-  | CALLDATASIZE
-  | CALLDATACOPY
-  | CODESIZE
-  | CODECOPY
-  | GASPRICE
+{- 30s: Environment -}
+    | ADDRESS
+    | BALANCE
+    | ORIGIN
+    | CALLER
+    | CALLVALUE
+    | CALLDATALOAD
+    | CALLDATASIZE
+    | CALLDATACOPY
+    | CODESIZE
+    | CODECOPY
+    | GASPRICE
 
-  -- 40s: Block Information
-  | PREVHASH
-  | COINBASE
-  | TIMESTAMP
-  | NUMBER
-  | DIFFICULTY
-  | GASLIMIT
+{- 40s: Block Information -}
+    | PREVHASH
+    | COINBASE
+    | TIMESTAMP
+    | NUMBER
+    | DIFFICULTY
+    | GASLIMIT
 
-  -- 50s: Stack, Memory, Storage and Flow Operations
-  | POP
-  | DUP
-  | SWAP
-  | MLOAD
-  | MSTORE
-  | MSTORE8
-  | SLOAD
-  | SSTORE
-  | JUMP
-  | JUMPI
-  | PC
-  | MSIZE
-  | GAS
+{- 50s: Stack, Memory, Storage and Flow Operations -}
+    | POP
+    | DUP
+    | SWAP
+    | MLOAD
+    | MSTORE
+    | MSTORE8
+    | SLOAD
+    | SSTORE
+    | JUMP
+    | JUMPI
+    | PC
+    | MSIZE
+    | GAS
 
-  -- 60s and 70s: Push Operations
-  | PUSH1
-  | PUSH2
-  | PUSH3
-  | PUSH4
-  | PUSH5
-  | PUSH6
-  | PUSH7
-  | PUSH8
-  | PUSH9
-  | PUSH10
-  | PUSH11
-  | PUSH12
-  | PUSH13
-  | PUSH14
-  | PUSH15
-  | PUSH16
-  | PUSH17
-  | PUSH18
-  | PUSH19
-  | PUSH20
-  | PUSH21
-  | PUSH22
-  | PUSH23
-  | PUSH24
-  | PUSH25
-  | PUSH26
-  | PUSH27
-  | PUSH28
-  | PUSH29
-  | PUSH30
-  | PUSH31
-  | PUSH32
+{- 60s and 70s: Push Operations -}
+    | PUSH1
+    | PUSH2
+    | PUSH3
+    | PUSH4
+    | PUSH5
+    | PUSH6
+    | PUSH7
+    | PUSH8
+    | PUSH9
+    | PUSH10
+    | PUSH11
+    | PUSH12
+    | PUSH13
+    | PUSH14
+    | PUSH15
+    | PUSH16
+    | PUSH17
+    | PUSH18
+    | PUSH19
+    | PUSH20
+    | PUSH21
+    | PUSH22
+    | PUSH23
+    | PUSH24
+    | PUSH25
+    | PUSH26
+    | PUSH27
+    | PUSH28
+    | PUSH29
+    | PUSH30
+    | PUSH31
+    | PUSH32
 
-  -- f0s: System operations
-  | CREATE
-  | CALL
-  | RETURN
-  | SUICIDE
+{- f0s: System operations -}
+    | CREATE
+    | CALL
+    | RETURN
+    | SUICIDE
+    deriving Eq
 
-  -- Non-existent sort of value
-  | INVALID
-  deriving Eq
-
+-- | The stack requirements for a given instruction.
 stackPopCount :: Instruction -> Int
 stackPopCount STOP = 0
 stackPopCount ADD = 2
@@ -137,7 +136,9 @@ stackPopCount RETURN = 2
 stackPopCount SUICIDE = 1
 stackPopCount INVALID = 0
 
+-- | The integer value of a given instruction.
 fromOpcode :: Word8 -> Instruction
+{- 0s: Stop and Arithmetic Operations -}
 fromOpcode 0x00 = STOP
 fromOpcode 0x01 = ADD
 fromOpcode 0x02 = MUL
@@ -159,10 +160,10 @@ fromOpcode 0x11 = OR
 fromOpcode 0x12 = XOR
 fromOpcode 0x13 = BYTE
 
--- 20s: SHA3
+{- 20s: SHA3 -}
 fromOpcode 0x20 = SHA3
 
--- 30s: Environmental Information
+{- 30s: Environmental Information -}
 fromOpcode 0x30 = ADDRESS
 fromOpcode 0x31 = BALANCE
 fromOpcode 0x32 = ORIGIN
@@ -175,7 +176,7 @@ fromOpcode 0x38 = CODESIZE
 fromOpcode 0x39 = CODECOPY
 fromOpcode 0x3a = GASPRICE
 
--- 40s: Block Information
+{- 40s: Block Information -}
 fromOpcode 0x40 = PREVHASH
 fromOpcode 0x41 = COINBASE
 fromOpcode 0x42 = TIMESTAMP
@@ -183,7 +184,7 @@ fromOpcode 0x43 = NUMBER
 fromOpcode 0x44 = DIFFICULTY
 fromOpcode 0x45 = GASLIMIT
 
--- 50s: Stack, Memory, Storage and Flow Operations
+{- 50s: Stack, Memory, Storage and Flow Operations -}
 fromOpcode 0x50 = POP
 fromOpcode 0x51 = DUP
 fromOpcode 0x52 = SWAP
@@ -198,7 +199,7 @@ fromOpcode 0x5a = PC
 fromOpcode 0x5b = MSIZE
 fromOpcode 0x5c = GAS
 
--- 60s and 70s: Push Operations
+{- 60s and 70s: Push Operations -}
 fromOpcode 0x60 = PUSH1
 fromOpcode 0x61 = PUSH2
 fromOpcode 0x62 = PUSH3
@@ -232,11 +233,10 @@ fromOpcode 0x7d = PUSH30
 fromOpcode 0x7e = PUSH31
 fromOpcode 0x7f = PUSH32
 
--- f0s: System operations
+{- f0s: System operations -}
 fromOpcode 0xf0 = CREATE
 fromOpcode 0xf1 = CALL
 fromOpcode 0xf2 = RETURN
+fromOpcode 0xff = SUICIDE
 
-fromOpcode 0xff= SUICIDE
-
-fromOpcode _ = INVALID -- pseudo-value
+fromOpcode _    = INVALID -- pseudo-value
