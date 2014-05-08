@@ -9,7 +9,16 @@ import Ethereum.EVM.InstructionSet
 import Ethereum.EVM.VM
 import Ethereum.SimpleTypes
 
-simpleProgram :: [Instruction] -> ExecutionEnvironment
+data CodeByte = I Instruction
+              | D Word8
+
+compile :: [CodeByte] -> Array Integer Word8
+compile = listArray.(map compileByte)
+        where compileByte b = case b of
+                I i -> toOpcode i
+                D v -> v
+
+simpleProgram :: [CodeByte] -> ExecutionEnvironment
 simpleProgram instructions =
   EE { owner=Address,
        sender=Address,

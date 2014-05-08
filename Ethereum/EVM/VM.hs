@@ -74,17 +74,20 @@ getNextCost ee ms =
 getMemoryCost ee ms = 0
 
 getInstructionCost ee ms =
-        let instr = nextOp ee ms
-        in case instr of
+        let w = unsafeNextOp ee ms
+        in case w of
                 STOP -> Fee.stop
                 _ -> Fee.step
 
 -- Equation 86
-nextOp :: ExecutionEnvironment -> MachineState -> Instruction
+nextOp :: ExecutionEnvironment -> MachineState -> Maybe Instruction
 nextOp (EE {code=cs}) (MS {pc=counter}) =
         if counter < (snd.bounds) cs
            then fromOpcode $ cs ! counter
-           else STOP
+           else Just STOP
+
+unsafeNextOp :: ExecutionEnvironment -> MachineState -> Instruction
+unsafeNextOp ee ms = fromJust $ nextOp ee ms
 
 data RunTimeError = OutOfGas
                   | InvalidInstruction
@@ -99,10 +102,10 @@ checkException ee ms =
                 if gas ms < getNextCost ee ms
                    then Just OutOfGas
                    else Nothing,
-                if INVALID == w
+                if isNothing w
                    then Just InvalidInstruction
                    else Nothing,
-                if isStackUnderflow (stackPopCount w) (stack ms)
+                if isStackUnderflow (stackPopCount (fromJust w)) (stack ms)
                    then Just StackUnderflow
                    else Nothing
                 ]
@@ -113,8 +116,8 @@ checkException ee ms =
 -- |Checks for normal halt as defined in section 9.4.2.
 checkHalt :: ExecutionEnvironment -> MachineState -> Maybe MemSlice
 checkHalt ee ms =
-  let instr = nextOp ee ms in
-  case instr of
+  let w = unsafeNextOp ee ms in
+  case w of
     RETURN -> let startAddr:endAddr:_ = stack ms in
               Just $ memRange ms (startAddr, endAddr)
     STOP -> Just []
@@ -123,7 +126,7 @@ checkHalt ee ms =
 
 execOp :: ExecutionEnvironment -> MachineState -> MachineState
 execOp ee ms =
-        case (nextOp ee ms) of
+        case (unsafeNextOp ee ms) of
                 ADD -> execStackBinaryOp ee ms (+)
                 MUL -> execStackBinaryOp ee ms (*)
                 SUB -> execStackBinaryOp ee ms (-)

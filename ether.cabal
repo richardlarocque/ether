@@ -14,7 +14,7 @@ extra-source-files:
     tests/*.hs
 
 Library
-  build-depends:       base >=4.6 && <4.7, largeword >=1.0 && <1.1, containers >=0.5 && <0.6
+  build-depends:       base >=4.6 && <4.7, largeword >=1.0 && <1.1, containers >=0.5 && <0.6, array >= 0.4 && < 0.5
   ghc-options:         -O2 -Wall
   exposed-modules:
       Ethereum.SimpleTypes,
@@ -29,7 +29,7 @@ Test-suite evm
   main-is:             evm_hunit.hs
   type:                exitcode-stdio-1.0
 
-  build-depends:       base >=4.6 && <4.7, largeword >=1.0 && <1.1, containers >=0.5 && <0.6
+  build-depends:       base >=4.6 && <4.7, largeword >=1.0 && <1.1, containers >=0.5 && <0.6, array >= 0.4 && < 0.5
   ghc-options:         -O2 -Wall
 
   build-depends:
