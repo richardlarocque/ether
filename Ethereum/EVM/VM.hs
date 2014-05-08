@@ -25,6 +25,8 @@ import Data.Maybe
 import qualified Data.Map as M
 import Control.Monad
 
+import Debug.Trace -- FIXME!
+
 data SystemState = SystemState
 
 -- |The machine state tuple defined in section 9.4.
@@ -37,10 +39,13 @@ data MachineState = MS {
 
 memRange :: MachineState -> (Word256, Word256) -> MemSlice
 memRange ms (startAddr, endAddr) =
-        map (memWord ms) [startAddr..endAddr]
+        map (memWord ms) [startAddr..endAddr-1]
 
 memWord :: MachineState -> Word256 -> Word256
 memWord ms addr = fromMaybe 0 $ M.lookup addr (memory ms)
+
+setWord :: Word256 -> Word256 -> Memory -> Memory
+setWord = M.insert
 
 -- |The execution environment tuple defined in section 9.3.
 data ExecutionEnvironment = EE {
@@ -59,7 +64,7 @@ inBounds index a = let (left,right) = bounds a
 
 codeRange :: Code -> (Integer, Integer) -> [Word8]
 codeRange c (startAddr, endAddr) =
-        map (codeByte c) [startAddr..endAddr]
+        map (codeByte c) [startAddr..endAddr-1]
 
 codeByte :: Code -> Integer -> Word8
 codeByte c addr = if inBounds addr c
@@ -116,13 +121,13 @@ checkException ee ms =
 -- |Checks for normal halt as defined in section 9.4.2.
 checkHalt :: ExecutionEnvironment -> MachineState -> Maybe MemSlice
 checkHalt ee ms =
-  let w = unsafeNextOp ee ms in
-  case w of
-    RETURN -> let startAddr:endAddr:_ = stack ms in
-              Just $ memRange ms (startAddr, endAddr)
-    STOP -> Just []
-    SUICIDE -> Just []
-    _ -> Nothing
+  let w = unsafeNextOp ee ms
+  in case w of
+          RETURN -> let startAddr:endAddr:_ = stack ms
+                    in Just $ memRange ms (startAddr, endAddr)
+          STOP -> Just []
+          SUICIDE -> Just []
+          _ -> Nothing
 
 execOp :: ExecutionEnvironment -> MachineState -> MachineState
 execOp ee ms =
@@ -171,6 +176,8 @@ execOp ee ms =
                 PUSH30 -> execPushOp ee ms 30
                 PUSH31 -> execPushOp ee ms 31
                 PUSH32 -> execPushOp ee ms 32
+                --
+                MSTORE -> execMStoreOp ee ms
 
 safeDiv a 0 = 0
 safeDiv a b = a `div` b
@@ -202,7 +209,16 @@ execPushOp ee ms n = MS {
                 wordToPush :: Code -> Integer -> Word256
                 wordToPush code pc = packBytes $ codeRange code (pc+1, pc+1+n)
                 packBytes :: [Word8] -> Word256
-                packBytes bs = foldr (\x a -> (a * 256) + (fromIntegral x)) (0 :: Word256) (bs :: [Word8])
+                packBytes bs = foldl (\a x -> (a * 256) + (fromIntegral x)) (0 :: Word256) (bs :: [Word8])
+
+execMStoreOp ee ms =
+        let (addr:value:stack') = stack ms
+        in MS {
+                gas = (gas ms) - getNextCost ee ms,
+                pc = (pc ms) + 1,
+                memory = setWord addr value (memory ms),
+                stack = stack'
+        }
 
 initialMachineState :: ExecutionEnvironment -> MachineState
 initialMachineState ee = MS {

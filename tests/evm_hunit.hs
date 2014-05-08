@@ -34,7 +34,25 @@ runCodeTest c v = assert $ (runVM (simpleProgram c)) ==  v
 
 runBinOpTest :: Instruction -> Either RunTimeError MemSlice -> Assertion
 runBinOpTest op v = assert $ (runVM (binOpTestWrapper op)) == v
-        where binOpTestWrapper i = simpleProgram [ I PUSH1, D 5, I PUSH1, D 3, I i ]
+        where binOpTestWrapper i =
+                simpleProgram
+                [ I PUSH1   -- Arguments to RETURN
+                , D 1
+                , I PUSH1
+                , D 0
+
+                , I PUSH1   -- Arguments to 'i'
+                , D 3
+                , I PUSH1
+                , D 5
+                , I i
+
+                , I PUSH1   -- Arguments to MSTORE
+                , D 0
+
+                , I MSTORE
+                , I RETURN
+                ]
 
 -- TODO: Infinite loop into out of gas.
 -- TODO: Suicide test needs a stack argument for some reason.
@@ -47,8 +65,8 @@ tests = [
                 testCase "stop" $ runCodeTest [I STOP] (Right [])
                 ],
         testGroup "Binary Operations" [
-                testCase "ADD" $ runBinOpTest ADD (Right []),
-                testCase "SUB" $ runBinOpTest SUB (Right [])
+                testCase "ADD" $ runBinOpTest ADD (Right [8]),
+                testCase "SUB" $ runBinOpTest SUB (Right [2])
                 ]
         ]
 
