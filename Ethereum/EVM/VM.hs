@@ -1,3 +1,16 @@
+{- |
+Module      :  Ethereum.EVM.FeeSchedule
+Description :  Implementation of the Ethereum Virtual Machine
+Copyright   :  (c) Richard Larocque
+License     :  GPL-3.0+
+
+Maintainer  :  richard.larocque@gmail.com
+Stability   :  unstable
+Portability :  non-portable (Unknown portability)
+
+See Ethereum Yellow Paper, Proof-of-Concept V, Section 9
+-}
+
 module Ethereum.EVM.VM where
 
 import Ethereum.EVM.InstructionSet
