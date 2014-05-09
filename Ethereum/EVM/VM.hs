@@ -13,19 +13,19 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 9
 
 module Ethereum.EVM.VM where
 
-import Ethereum.EVM.InstructionSet
+import Ethereum.EVM.InstructionSet as E
 import Ethereum.SimpleTypes
 
 import qualified Ethereum.EVM.FeeSchedule as Fee -- FIXME: Should not need this long run.
 
-import Data.Word
-import Data.LargeWord
-import Data.Array
-import Data.Maybe
-import qualified Data.Map as M
 import Control.Monad
-
-import Debug.Trace -- FIXME!
+import Data.Array
+import Data.Binary
+import Data.Digest.Pure.SHA
+import Data.LargeWord
+import Data.Maybe
+import qualified Data.ByteString.Lazy as B
+import qualified Data.Map as M
 
 data SystemState = SystemState
 
@@ -132,52 +132,106 @@ checkHalt ee ms =
 execOp :: ExecutionEnvironment -> MachineState -> MachineState
 execOp ee ms =
         case (unsafeNextOp ee ms) of
-                ADD -> execStackBinaryOp ee ms (+)
-                MUL -> execStackBinaryOp ee ms (*)
-                SUB -> execStackBinaryOp ee ms (-)
-                DIV -> execStackBinaryOp ee ms (safeDiv)
-                MOD -> execStackBinaryOp ee ms (mod)
-                --EXP -> execSimpleBinOp ee ms (**)
-                NEG -> execStackUnaryOp ee ms (*(-1))
-                --
-                POP -> execStackOp ee ms tail
-                DUP -> execStackOp ee ms (\(x:xs) -> x:x:xs)
-                SWAP -> execStackOp ee ms (\(a:b:xs) -> b:a:xs)
-                --
-                PUSH1 ->  execPushOp ee ms  1
-                PUSH2 ->  execPushOp ee ms  2
-                PUSH3 ->  execPushOp ee ms  3
-                PUSH4 ->  execPushOp ee ms  4
-                PUSH5 ->  execPushOp ee ms  5
-                PUSH6 ->  execPushOp ee ms  6
-                PUSH7 ->  execPushOp ee ms  7
-                PUSH8 ->  execPushOp ee ms  8
-                PUSH9 ->  execPushOp ee ms  9
-                PUSH10 -> execPushOp ee ms 10
-                PUSH11 -> execPushOp ee ms 11
-                PUSH12 -> execPushOp ee ms 12
-                PUSH13 -> execPushOp ee ms 13
-                PUSH14 -> execPushOp ee ms 14
-                PUSH15 -> execPushOp ee ms 15
-                PUSH16 -> execPushOp ee ms 16
-                PUSH17 -> execPushOp ee ms 17
-                PUSH18 -> execPushOp ee ms 18
-                PUSH19 -> execPushOp ee ms 19
-                PUSH20 -> execPushOp ee ms 20
-                PUSH21 -> execPushOp ee ms 21
-                PUSH22 -> execPushOp ee ms 22
-                PUSH23 -> execPushOp ee ms 23
-                PUSH24 -> execPushOp ee ms 24
-                PUSH25 -> execPushOp ee ms 25
-                PUSH26 -> execPushOp ee ms 26
-                PUSH27 -> execPushOp ee ms 27
-                PUSH28 -> execPushOp ee ms 28
-                PUSH29 -> execPushOp ee ms 29
-                PUSH30 -> execPushOp ee ms 30
-                PUSH31 -> execPushOp ee ms 31
-                PUSH32 -> execPushOp ee ms 32
-                --
-                MSTORE -> execMStoreOp ee ms
+                {- 0s: Stop and Arithmetic Operations -}
+                STOP    -> error "halting operations handled elsewhere"
+                ADD     -> execStackBinaryOp ee ms (+)
+                MUL     -> execStackBinaryOp ee ms (*)
+                SUB     -> execStackBinaryOp ee ms (-)
+                DIV     -> execStackBinaryOp ee ms (safeDiv)
+                SDIV    -> error "not implemented"
+                MOD     -> execStackBinaryOp ee ms (mod)
+                SMOD    -> error "not implemented"
+                EXP     -> error "not implemented"
+                NEG     -> execStackUnaryOp ee ms (*(-1))
+                E.LT    -> error "not implemented"
+                E.GT    -> error "not implemented"
+                SLT     -> error "not implemented"
+                SGT     -> error "not implemented"
+                E.EQ    -> error "not implemented"
+                NOT     -> error "not implemented"
+                AND     -> error "not implemented"
+                OR      -> error "not implemented"
+                XOR     -> error "not implemented"
+                BYTE    -> error "not implemented"
+
+                {- 20s: SHA3 -}
+                SHA3    -> execSHA3 ee ms
+
+                {- 30s: Environment -}
+                ADDRESS         -> error "not implemented"
+                BALANCE         -> error "not implemented"
+                ORIGIN          -> error "not implemented"
+                CALLER          -> error "not implemented"
+                CALLVALUE       -> error "not implemented"
+                CALLDATALOAD    -> error "not implemented"
+                CALLDATASIZE    -> error "not implemented"
+                CALLDATACOPY    -> error "not implemented"
+                CODESIZE        -> error "not implemented"
+                CODECOPY        -> error "not implemented"
+                GASPRICE        -> error "not implemented"
+
+                {- 40s: Block Information -}
+                PREVHASH        -> error "not implemented"
+                COINBASE        -> error "not implemented"
+                TIMESTAMP       -> error "not implemented"
+                NUMBER          -> error "not implemented"
+                DIFFICULTY      -> error "not implemented"
+                GASLIMIT        -> error "not implemented"
+
+                {- 50s: Stack, Memory, Storage and Flow Operations -}
+                POP             -> execStackOp ee ms tail
+                DUP             -> execStackOp ee ms (\(x:xs) -> x:x:xs)
+                SWAP            -> execStackOp ee ms (\(a:b:xs) -> b:a:xs)
+                MLOAD           -> error "not implemented"
+                MSTORE          -> execMSTORE ee ms
+                MSTORE8         -> error "not implemented"
+                SLOAD           -> error "not implemented"
+                SSTORE          -> error "not implemented"
+                JUMP            -> error "not implemented"
+                JUMPI           -> error "not implemented"
+                PC              -> error "not implemented"
+                MSIZE           -> error "not implemented"
+                GAS             -> error "not implemented"
+
+                {- 60s and 70s: Push Operations -}
+                PUSH1   -> execPushOp ee ms  1
+                PUSH2   -> execPushOp ee ms  2
+                PUSH3   -> execPushOp ee ms  3
+                PUSH4   -> execPushOp ee ms  4
+                PUSH5   -> execPushOp ee ms  5
+                PUSH6   -> execPushOp ee ms  6
+                PUSH7   -> execPushOp ee ms  7
+                PUSH8   -> execPushOp ee ms  8
+                PUSH9   -> execPushOp ee ms  9
+                PUSH10  -> execPushOp ee ms 10
+                PUSH11  -> execPushOp ee ms 11
+                PUSH12  -> execPushOp ee ms 12
+                PUSH13  -> execPushOp ee ms 13
+                PUSH14  -> execPushOp ee ms 14
+                PUSH15  -> execPushOp ee ms 15
+                PUSH16  -> execPushOp ee ms 16
+                PUSH17  -> execPushOp ee ms 17
+                PUSH18  -> execPushOp ee ms 18
+                PUSH19  -> execPushOp ee ms 19
+                PUSH20  -> execPushOp ee ms 20
+                PUSH21  -> execPushOp ee ms 21
+                PUSH22  -> execPushOp ee ms 22
+                PUSH23  -> execPushOp ee ms 23
+                PUSH24  -> execPushOp ee ms 24
+                PUSH25  -> execPushOp ee ms 25
+                PUSH26  -> execPushOp ee ms 26
+                PUSH27  -> execPushOp ee ms 27
+                PUSH28  -> execPushOp ee ms 28
+                PUSH29  -> execPushOp ee ms 29
+                PUSH30  -> execPushOp ee ms 30
+                PUSH31  -> execPushOp ee ms 31
+                PUSH32  -> execPushOp ee ms 32
+
+                {- f0s: System operations -}
+                CREATE  -> error "not implemented"
+                CALL    -> error "not implemented"
+                RETURN  -> error "halting operations are handled elsewhere"
+                SUICIDE -> error "halting operations are handled elsewhere"
 
 safeDiv a 0 = 0
 safeDiv a b = a `div` b
@@ -211,13 +265,23 @@ execPushOp ee ms n = MS {
                 packBytes :: [Word8] -> Word256
                 packBytes bs = foldl (\a x -> (a * 256) + (fromIntegral x)) (0 :: Word256) (bs :: [Word8])
 
-execMStoreOp ee ms =
+execMSTORE ee ms =
         let (addr:value:stack') = stack ms
         in MS {
                 gas = (gas ms) - getNextCost ee ms,
                 pc = (pc ms) + 1,
                 memory = setWord addr value (memory ms),
                 stack = stack'
+        }
+
+execSHA3 ee ms =
+        let (s:e:stack') = stack ms
+            hashResult = (decode $ encode $ sha256 $ B.pack $ decode $ encode $ memRange ms (s,e))
+        in MS {
+                gas = (gas ms) - getNextCost ee ms,
+                pc = (pc ms) + 1,
+                memory = memory ms,
+                stack = hashResult:stack'
         }
 
 initialMachineState :: ExecutionEnvironment -> MachineState
