@@ -21,6 +21,7 @@ import qualified Ethereum.EVM.FeeSchedule as Fee -- FIXME: Should not need this 
 import Control.Monad
 import Data.Array
 import Data.Binary
+import Data.Bits
 import Data.Digest.Pure.SHA
 import Data.LargeWord
 import Data.Maybe
@@ -143,16 +144,16 @@ execOp ee ms =
                 SMOD    -> error "not implemented"
                 EXP     -> error "not implemented"
                 NEG     -> execStackUnaryOp ee ms (*(-1))
-                E.LT    -> error "not implemented"
-                E.GT    -> error "not implemented"
+                E.LT    -> execStackBinaryBoolOp ee ms (<)
+                E.GT    -> execStackBinaryBoolOp ee ms (>)
                 SLT     -> error "not implemented"
                 SGT     -> error "not implemented"
-                E.EQ    -> error "not implemented"
-                NOT     -> error "not implemented"
-                AND     -> error "not implemented"
-                OR      -> error "not implemented"
-                XOR     -> error "not implemented"
-                BYTE    -> error "not implemented"
+                E.EQ    -> execStackBinaryBoolOp ee ms (==)
+                NOT     -> execStackUnaryBoolOp ee ms (0 ==)
+                AND     -> execStackBinaryOp ee ms (.&.)
+                OR      -> execStackBinaryOp ee ms (.|.)
+                XOR     -> execStackBinaryOp ee ms (xor)
+                BYTE    -> execBYTE ee ms
 
                 {- 20s: SHA3 -}
                 SHA3    -> execSHA3 ee ms
@@ -252,6 +253,24 @@ execStackUnaryOp ee ms f = execStackOp ee ms (\(x:xs) -> (f x):xs)
 execStackBinaryOp :: ExecutionEnvironment-> MachineState ->
         (Word256 -> Word256 -> Word256) -> MachineState
 execStackBinaryOp ee ms f = execStackOp ee ms (\(a:b:xs) -> (f a b):xs)
+
+execStackUnaryBoolOp :: ExecutionEnvironment-> MachineState ->
+        (Word256 -> Bool) -> MachineState
+execStackUnaryBoolOp ee ms f =
+        execStackOp ee ms (\(x:xs) -> (if f x then 1 else 0):xs)
+
+execStackBinaryBoolOp :: ExecutionEnvironment-> MachineState ->
+        (Word256 -> Word256 -> Bool) -> MachineState
+execStackBinaryBoolOp ee ms f =
+        execStackOp ee ms (\(a:b:xs) -> (if f a b then 1 else 0):xs)
+
+execBYTE ee ms = execStackBinaryOp ee ms byteOp where
+        byteOp :: Word256 -> Word256 -> Word256
+        byteOp i w =
+                if i < 32
+                   then let bs = 32 - (8 * (i+1))
+                        in w `shiftR` bs
+                   else 0
 
 execPushOp ee ms n = MS {
         gas = (gas ms) - getNextCost ee ms,
