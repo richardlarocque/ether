@@ -183,16 +183,16 @@ execOp ee ms =
                 POP             -> execStackOp ee ms tail
                 DUP             -> execStackOp ee ms (\(x:xs) -> x:x:xs)
                 SWAP            -> execStackOp ee ms (\(a:b:xs) -> b:a:xs)
-                MLOAD           -> error "not implemented"
+                MLOAD           -> execMLOAD ee ms
                 MSTORE          -> execMSTORE ee ms
-                MSTORE8         -> error "not implemented"
+                MSTORE8         -> execMSTORE8 ee ms
                 SLOAD           -> error "not implemented"
                 SSTORE          -> error "not implemented"
-                JUMP            -> error "not implemented"
+                JUMP            -> execJUMP ee ms
                 JUMPI           -> error "not implemented"
-                PC              -> error "not implemented"
+                PC              -> execPC ee ms
                 MSIZE           -> error "not implemented"
-                GAS             -> error "not implemented"
+                GAS             -> execGAS ee ms
 
                 {- 60s and 70s: Push Operations -}
                 PUSH1   -> execPushOp ee ms  1
@@ -268,8 +268,12 @@ execBYTE ee ms = execStackBinaryOp ee ms byteOp where
         byteOp :: Word256 -> Word256 -> Word256
         byteOp i w =
                 if i < 32
-                   then fromIntegral $ (encode w) `B.index` (fromIntegral i)
+                   then extractByte w i
                    else 0
+
+-- extracts byte starting from most-significant in big-endian
+extractByte ::  (Integral a, Integral b) => Word256 -> a -> b
+extractByte b i = fromIntegral $ (encode b) `B.index` (fromIntegral i)
 
 execPushOp ee ms n = MS {
         gas = (gas ms) - getNextCost ee ms,
@@ -283,6 +287,15 @@ execPushOp ee ms n = MS {
                 packBytes :: [Word8] -> Word256
                 packBytes bs = foldl (\a x -> (a * 256) + (fromIntegral x)) (0 :: Word256) (bs :: [Word8])
 
+execMLOAD ee ms =
+        let (addr:stack') = stack ms
+        in MS {
+                gas = (gas ms) - getNextCost ee ms,
+                pc = (pc ms) + 1,
+                memory = memory ms,
+                stack = (memWord ms addr):stack'
+        }
+
 execMSTORE ee ms =
         let (addr:value:stack') = stack ms
         in MS {
@@ -290,6 +303,40 @@ execMSTORE ee ms =
                 pc = (pc ms) + 1,
                 memory = setWord addr value (memory ms),
                 stack = stack'
+        }
+
+execMSTORE8 ee ms =
+        let (addr:value:stack') = stack ms
+        in MS {
+                gas = (gas ms) - getNextCost ee ms,
+                pc = (pc ms) + 1,
+                memory = setWord addr (extractByte value 31) (memory ms),
+                stack = stack'
+        }
+
+execJUMP ee ms =
+        let (dest:stack') = stack ms
+        in MS {
+                gas = (gas ms) - getNextCost ee ms,
+                pc = fromIntegral dest,
+                memory = memory ms,
+                stack = stack'
+        }
+
+execPC ee ms =
+        MS {
+                gas = (gas ms) - getNextCost ee ms,
+                pc = (pc ms) + 1,
+                memory = memory ms,
+                stack = (fromIntegral $ pc ms):(stack ms)
+        }
+
+execGAS ee ms =
+        MS {
+                gas = (gas ms) - getNextCost ee ms,
+                pc = (pc ms) + 1,
+                memory = memory ms,
+                stack = (fromIntegral $ gas ms):(stack ms)
         }
 
 execSHA3 ee ms =
