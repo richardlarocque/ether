@@ -1,5 +1,5 @@
 {- |
-Module      :  Ethereum.EVM.FeeSchedule
+Module      :  Ethereum.EVM.VM
 Description :  Implementation of the Ethereum Virtual Machine
 Copyright   :  (c) Richard Larocque
 License     :  GPL-3.0+
