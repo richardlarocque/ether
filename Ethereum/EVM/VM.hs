@@ -14,6 +14,8 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 9
 module Ethereum.EVM.VM where
 
 import Ethereum.EVM.InstructionSet as E
+import Ethereum.EVM.MachineState
+import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.SimpleTypes
 
 import qualified Ethereum.EVM.FeeSchedule as Fee -- FIXME: Should not need this long run.
@@ -26,38 +28,8 @@ import Data.Digest.Pure.SHA
 import Data.LargeWord
 import Data.Maybe
 import qualified Data.ByteString.Lazy as B
-import qualified Data.Map as M
 
 data SystemState = SystemState
-
--- |The machine state tuple defined in section 9.4.
-data MachineState = MS {
-        gas :: Gas,
-        pc :: Integer,
-        memory :: Memory,
-        stack :: Stack
-}
-
-memRange :: MachineState -> (Word256, Word256) -> MemSlice
-memRange ms (startAddr, endAddr) =
-        map (memWord ms) [startAddr..endAddr-1]
-
-memWord :: MachineState -> Word256 -> Word256
-memWord ms addr = fromMaybe 0 $ M.lookup addr (memory ms)
-
-setWord :: Word256 -> Word256 -> Memory -> Memory
-setWord = M.insert
-
--- |The execution environment tuple defined in section 9.3.
-data ExecutionEnvironment = EE {
-        owner :: Address,
-        sender :: Address,
-        gasPrice :: Ether,
-        input :: ByteArray,
-        execCause :: Address,
-        value :: Ether,
-        code :: Code
-}
 
 inBounds :: Ix i => i -> Array i e -> Bool
 inBounds index a = let (left,right) = bounds a
@@ -87,19 +59,16 @@ getInstructionCost ee ms =
 
 -- Equation 86
 nextOp :: ExecutionEnvironment -> MachineState -> Maybe Instruction
-nextOp (EE {code=cs}) (MS {pc=counter}) =
-        if counter < (snd.bounds) cs
-           then fromOpcode $ cs ! counter
+nextOp (EE {code=cs}) ms =
+        if (pc ms) < (snd.bounds) cs
+           then fromOpcode $ cs ! (pc ms)
            else Just STOP
 
 unsafeNextOp :: ExecutionEnvironment -> MachineState -> Instruction
 unsafeNextOp ee ms = fromJust $ nextOp ee ms
 
-data RunTimeError = OutOfGas
-                  | InvalidInstruction
-                  | StackUnderflow
-                  deriving Eq
 
+{-
 -- |Checks for exceptional halt as defined in section 9.4.1.
 checkException :: ExecutionEnvironment -> MachineState -> Maybe RunTimeError
 checkException ee ms =
@@ -129,34 +98,48 @@ checkHalt ee ms =
           STOP -> Just []
           SUICIDE -> Just []
           _ -> Nothing
+-}
 
-execOp :: ExecutionEnvironment -> MachineState -> MachineState
-execOp ee ms =
+execNext :: ExecutionEnvironment -> MachineState -> Either RunTimeError MemSlice
+execNext ee ms = do
+        case nextOp ee ms of
+                Nothing -> Left InvalidInstruction
+                Just w -> do ms' <- execOp ee ms w
+                             gasCheck ms'
+                             execNext ee ms'
+
+gasCheck :: MachineState -> Either RunTimeError ()
+gasCheck ms = case outOfGas ms of
+        True -> Left OutOfGas
+        False -> Right ()
+
+execOp :: ExecutionEnvironment -> MachineState -> Instruction -> Either RunTimeError MachineState
+execOp ee ms w =
         case (unsafeNextOp ee ms) of
                 {- 0s: Stop and Arithmetic Operations -}
                 STOP    -> error "halting operations handled elsewhere"
-                ADD     -> execStackBinaryOp ee ms (+)
-                MUL     -> execStackBinaryOp ee ms (*)
-                SUB     -> execStackBinaryOp ee ms (-)
-                DIV     -> execStackBinaryOp ee ms (safeDiv)
-                SDIV    -> error "not implemented"
-                MOD     -> execStackBinaryOp ee ms (mod)
-                SMOD    -> error "not implemented"
-                EXP     -> error "not implemented"
-                NEG     -> execStackUnaryOp ee ms (*(-1))
-                E.LT    -> execStackBinaryBoolOp ee ms (<)
-                E.GT    -> execStackBinaryBoolOp ee ms (>)
-                SLT     -> error "not implemented"
-                SGT     -> error "not implemented"
-                E.EQ    -> execStackBinaryBoolOp ee ms (==)
-                NOT     -> execStackUnaryBoolOp ee ms (0 ==)
-                AND     -> execStackBinaryOp ee ms (.&.)
-                OR      -> execStackBinaryOp ee ms (.|.)
-                XOR     -> execStackBinaryOp ee ms (xor)
-                BYTE    -> execBYTE ee ms
+                ADD     -> stackBinOp (+) ms
+                MUL     -> stackBinOp (-) ms
+                -- SUB     -> execStackBinaryOp ee ms (-)
+                -- DIV     -> execStackBinaryOp ee ms (safeDiv)
+                -- SDIV    -> error "not implemented"
+                -- MOD     -> execStackBinaryOp ee ms (mod)
+                -- SMOD    -> error "not implemented"
+                -- EXP     -> error "not implemented"
+                -- NEG     -> execStackUnaryOp ee ms (*(-1))
+                -- E.LT    -> execStackBinaryBoolOp ee ms (<)
+                -- E.GT    -> execStackBinaryBoolOp ee ms (>)
+                -- SLT     -> error "not implemented"
+                -- SGT     -> error "not implemented"
+                -- E.EQ    -> execStackBinaryBoolOp ee ms (==)
+                -- --NOT     -> execStackUnaryBoolOp ee ms (0 ==) -- FIXME
+                -- AND     -> execStackBinaryOp ee ms (.&.)
+                -- OR      -> execStackBinaryOp ee ms (.|.)
+                -- XOR     -> execStackBinaryOp ee ms (xor)
+                -- BYTE    -> execBYTE ee ms -- FIXME
 
                 {- 20s: SHA3 -}
-                SHA3    -> execSHA3 ee ms
+                -- SHA3    -> execSHA3 ee ms -- FIXME
 
                 {- 30s: Environment -}
                 ADDRESS         -> error "not implemented"
@@ -180,53 +163,53 @@ execOp ee ms =
                 GASLIMIT        -> error "not implemented"
 
                 {- 50s: Stack, Memory, Storage and Flow Operations -}
-                POP             -> execStackOp ee ms tail
-                DUP             -> execStackOp ee ms (\(x:xs) -> x:x:xs)
-                SWAP            -> execStackOp ee ms (\(a:b:xs) -> b:a:xs)
-                MLOAD           -> execMLOAD ee ms
-                MSTORE          -> execMSTORE ee ms
-                MSTORE8         -> execMSTORE8 ee ms
+                -- POP             -> pop ms
+                -- DUP             -> execStackOp ee ms (\(x:xs) -> x:x:xs)  -- FIXME
+                -- SWAP            -> execStackOp ee ms (\(a:b:xs) -> b:a:xs) -- FIXME
+                -- MLOAD           -> execMLOAD ee ms
+                -- MSTORE          -> execMSTORE ee ms
+                -- MSTORE8         -> execMSTORE8 ee ms
                 SLOAD           -> error "not implemented"
                 SSTORE          -> error "not implemented"
-                JUMP            -> execJUMP ee ms
+                -- JUMP            -> execJUMP ee ms
                 JUMPI           -> error "not implemented"
-                PC              -> execPC ee ms
+                -- PC              -> execPC ee ms
                 MSIZE           -> error "not implemented"
-                GAS             -> execGAS ee ms
+                -- GAS             -> execGAS ee ms
 
                 {- 60s and 70s: Push Operations -}
-                PUSH1   -> execPushOp ee ms  1
-                PUSH2   -> execPushOp ee ms  2
-                PUSH3   -> execPushOp ee ms  3
-                PUSH4   -> execPushOp ee ms  4
-                PUSH5   -> execPushOp ee ms  5
-                PUSH6   -> execPushOp ee ms  6
-                PUSH7   -> execPushOp ee ms  7
-                PUSH8   -> execPushOp ee ms  8
-                PUSH9   -> execPushOp ee ms  9
-                PUSH10  -> execPushOp ee ms 10
-                PUSH11  -> execPushOp ee ms 11
-                PUSH12  -> execPushOp ee ms 12
-                PUSH13  -> execPushOp ee ms 13
-                PUSH14  -> execPushOp ee ms 14
-                PUSH15  -> execPushOp ee ms 15
-                PUSH16  -> execPushOp ee ms 16
-                PUSH17  -> execPushOp ee ms 17
-                PUSH18  -> execPushOp ee ms 18
-                PUSH19  -> execPushOp ee ms 19
-                PUSH20  -> execPushOp ee ms 20
-                PUSH21  -> execPushOp ee ms 21
-                PUSH22  -> execPushOp ee ms 22
-                PUSH23  -> execPushOp ee ms 23
-                PUSH24  -> execPushOp ee ms 24
-                PUSH25  -> execPushOp ee ms 25
-                PUSH26  -> execPushOp ee ms 26
-                PUSH27  -> execPushOp ee ms 27
-                PUSH28  -> execPushOp ee ms 28
-                PUSH29  -> execPushOp ee ms 29
-                PUSH30  -> execPushOp ee ms 30
-                PUSH31  -> execPushOp ee ms 31
-                PUSH32  -> execPushOp ee ms 32
+                -- PUSH1   -> execPushOp ee ms  1
+                -- PUSH2   -> execPushOp ee ms  2
+                -- PUSH3   -> execPushOp ee ms  3
+                -- PUSH4   -> execPushOp ee ms  4
+                -- PUSH5   -> execPushOp ee ms  5
+                -- PUSH6   -> execPushOp ee ms  6
+                -- PUSH7   -> execPushOp ee ms  7
+                -- PUSH8   -> execPushOp ee ms  8
+                -- PUSH9   -> execPushOp ee ms  9
+                -- PUSH10  -> execPushOp ee ms 10
+                -- PUSH11  -> execPushOp ee ms 11
+                -- PUSH12  -> execPushOp ee ms 12
+                -- PUSH13  -> execPushOp ee ms 13
+                -- PUSH14  -> execPushOp ee ms 14
+                -- PUSH15  -> execPushOp ee ms 15
+                -- PUSH16  -> execPushOp ee ms 16
+                -- PUSH17  -> execPushOp ee ms 17
+                -- PUSH18  -> execPushOp ee ms 18
+                -- PUSH19  -> execPushOp ee ms 19
+                -- PUSH20  -> execPushOp ee ms 20
+                -- PUSH21  -> execPushOp ee ms 21
+                -- PUSH22  -> execPushOp ee ms 22
+                -- PUSH23  -> execPushOp ee ms 23
+                -- PUSH24  -> execPushOp ee ms 24
+                -- PUSH25  -> execPushOp ee ms 25
+                -- PUSH26  -> execPushOp ee ms 26
+                -- PUSH27  -> execPushOp ee ms 27
+                -- PUSH28  -> execPushOp ee ms 28
+                -- PUSH29  -> execPushOp ee ms 29
+                -- PUSH30  -> execPushOp ee ms 30
+                -- PUSH31  -> execPushOp ee ms 31
+                -- PUSH32  -> execPushOp ee ms 32
 
                 {- f0s: System operations -}
                 CREATE  -> error "not implemented"
@@ -237,6 +220,17 @@ execOp ee ms =
 safeDiv a 0 = 0
 safeDiv a b = a `div` b
 
+{-
+withTwoArgs :: (Word256 -> Word256 -> MachineState -> MachineState) -> (MachineState -> MachineState)
+
+withTwoArgsAndPush :: (Word256 -> Word256 -> Word256) -> (MachineState -> MachineState)
+
+push :: Word256 -> MachineState -> MachineState
+
+f :: Word256 -> Word256 -> Word256
+-}
+
+{-a
 execStackOp :: ExecutionEnvironment -> MachineState ->
         (Stack -> Stack) -> MachineState
 execStackOp ee ms f = MS {
@@ -295,16 +289,32 @@ execMLOAD ee ms =
                 memory = memory ms,
                 stack = (memWord ms addr):stack'
         }
+-}
 
-execMSTORE ee ms =
-        let (addr:value:stack') = stack ms
-        in MS {
-                gas = (gas ms) - getNextCost ee ms,
-                pc = (pc ms) + 1,
-                memory = setWord addr value (memory ms),
-                stack = stack'
-        }
+withArg :: (Word256 -> MachineState -> MachineState) -> (MachineState -> MachineState)
+withArg f ms = do (ms', arg) <- pop ms
+                  return $ f arg ms'
 
+withTwoArgs :: (Word256 -> Word256 -> MachineState -> MachineState) ->
+        (MachineState -> Either RunTimeError MachineState)
+withTwoArgs f ms = do (ms', (arg1, arg2)) <- popTwo ms
+                      return $ f arg1 arg2 ms'
+
+stackBinOp :: (Word256 -> Word256 -> Word256) ->
+        MachineState -> Either RunTimeError MachineState
+stackBinOp f ms = withTwoArgs (\a b -> push (f a b)) ms 
+
+stackUnOp :: (Word256 -> Word256) -> MachineState -> Either RunTimeError MachineState
+stackUnOp f ms = withArg (\a -> push (f a)) ms
+
+--execStackUnaryOp ee ms f = withTwoArgs (\a ms -> push (f a) ms)
+
+--execStackBinaryBoolOp ee ms f = withTwoArgs (\a b ms -> push ((asBool.f) a b) ms)
+        --where asBool x = if x == 0 then 0 else 1
+
+--execMSTORE _ ms = withTwoArgs mstore ms
+
+{-
 execMSTORE8 ee ms =
         let (addr:value:stack') = stack ms
         in MS {
@@ -349,14 +359,6 @@ execSHA3 ee ms =
                 stack = hashResult:stack'
         }
 
-initialMachineState :: ExecutionEnvironment -> MachineState
-initialMachineState ee = MS {
-        gas = (value ee) `div` (gasPrice ee),
-        pc = 0,
-        memory = M.empty,
-        stack = []
-}
-
 runVM :: ExecutionEnvironment -> Either RunTimeError MemSlice
 runVM ee = runVM' ee (initialMachineState ee)
 
@@ -368,3 +370,4 @@ runVM' ee ms = do
         case checkHalt ee ms of
                 Just result -> Right result
                 Nothing -> runVM' ee (execOp ee ms)
+-}

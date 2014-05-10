@@ -121,7 +121,7 @@ data Instruction = INVALID
     | CALL
     | RETURN
     | SUICIDE
-    deriving Eq
+    deriving (Show,Eq)
 
 -- | The stack requirements for a given instruction.
 stackPopCount :: Instruction -> Int

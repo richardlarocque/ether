@@ -17,7 +17,8 @@ module Ethereum.SimpleTypes (
         Address(..),
         Ether,
         ByteArray,
-        Code) where
+        Code,
+        RunTimeError(..)) where
 
 import Data.Array
 import Data.LargeWord
@@ -32,3 +33,8 @@ data Address = Address
 type Ether = Integer
 type ByteArray = [Word8]
 type Code = Array Integer Word8
+
+data RunTimeError = OutOfGas
+                  | InvalidInstruction
+                  | StackUnderflow
+                  deriving (Show,Eq)
