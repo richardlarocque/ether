@@ -268,8 +268,7 @@ execBYTE ee ms = execStackBinaryOp ee ms byteOp where
         byteOp :: Word256 -> Word256 -> Word256
         byteOp i w =
                 if i < 32
-                   then let bs = 32 - (8 * (i+1))
-                        in w `shiftR` bs
+                   then fromIntegral $ (encode w) `B.index` (fromIntegral i)
                    else 0
 
 execPushOp ee ms n = MS {
