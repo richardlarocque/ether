@@ -24,15 +24,14 @@ module Ethereum.SimpleTypes (
         blength,
         fromBytes,
         toBytes,
-        emptyMemSlice
+        emptyMemSlice,
+        memToByteString
 ) where
 
 import Data.Binary
-import Data.ByteString as B
+import Data.ByteString.Lazy as B
 import Data.LargeWord
-import Data.Word
 import Data.Vector as V
-import qualified Data.Map as M
 
 type Gas = Integer
 type MemSlice = Vector Word8
@@ -48,10 +47,10 @@ data RunTimeError = OutOfGas
 
 -- Addresses are 160 bits
 fromAddress :: Address -> Word256
-fromAddress a = 0  -- FIXME
+fromAddress _ = 0  -- FIXME
 
 fromEther :: Ether -> Word256
-fromEther e = 0  -- FIXME
+fromEther _ = 0  -- FIXME
 
 -- FIXME: brange and bbyte need to support out of range
 brange :: Integral a => (a, a) -> ByteArray -> ByteArray
@@ -72,4 +71,8 @@ fromBytes bs = (decode . encode . B.pack . V.toList) bs
 toBytes :: Word256 -> ByteArray
 toBytes = V.fromList . B.unpack . decode . encode
 
+emptyMemSlice :: MemSlice
 emptyMemSlice = V.empty
+
+memToByteString :: ByteArray -> ByteString
+memToByteString = B.pack . V.toList

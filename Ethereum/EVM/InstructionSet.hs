@@ -20,9 +20,9 @@ module Ethereum.EVM.InstructionSet(
 import Data.Word
 
 -- | All the opcodes declared in Appendix G.2, plus INVALID as a placeholder.
-data Instruction = INVALID
+data Instruction =
 {- 0s: Stop and Arithmetic Operations -}
-    | STOP  
+      STOP  
     | ADD
     | MUL
     | SUB

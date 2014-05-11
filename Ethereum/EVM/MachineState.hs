@@ -33,10 +33,7 @@ module Ethereum.EVM.MachineState(
 
 import Data.LargeWord
 import Data.Lens.Common
-import Data.Maybe
-import Data.Word
 import Data.Vector as V
-import qualified Data.Map as M
 
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.InstructionSet
@@ -63,19 +60,18 @@ initialState ee = MS {
 }
 
 mstore :: Word256 -> Word256 -> MachineState -> MachineState
-mstore addr value = (setMem (fromIntegral $ addr*32) (toBytes value)) . (expandMem addr)
+mstore addr word = (setMem (fromIntegral $ addr) (toBytes word)) . (expandMem addr)
 
--- FIXME: There's no way this is correct, is there?
 mstorerange :: Word256 -> ByteArray -> MachineState -> MachineState
-mstorerange addr value = let addr' = fromIntegral $ addr
-                         in (setMem (addr'*32) value) . (expandMem (fromIntegral (addr'*32 + blength value) `ceilDiv` 32))
+mstorerange addr bs = let addr' = fromIntegral $ addr
+                      in (setMem addr' bs) . (expandMem (fromIntegral (addr' + blength bs)))
 
 mload :: Word256 -> MachineState -> (MachineState, Word256)
 mload addr ms = let ms' = expandMem addr ms
-                in (ms', fromBytes $ getMem (fromIntegral $ addr*32) 32 ms')
+                in (ms', fromBytes $ getMem (fromIntegral $ addr) 32 ms')
 
 mloadrange :: Word256 -> Word256 -> MachineState -> (MachineState, ByteArray)
-mloadrange start len  ms = let ms' = expandMem (fromIntegral 32*(start+len)) ms
+mloadrange start len  ms = let ms' = expandMem (fromIntegral (start+len)) ms
                            in (ms', getMem (fromIntegral $ start) (fromIntegral len) ms')
 
 push :: Word256 -> MachineState -> MachineState
@@ -89,6 +85,7 @@ popTwo :: MachineState -> Either RunTimeError (MachineState, (Word256, Word256))
 popTwo ms@MS{stack=a1:a2:s'} = Right (ms{stack=s'}, (a1,a2))
 popTwo _ = Left StackUnderflow
 
+popThree :: MachineState-> Either RunTimeError (MachineState, (Word256, Word256, Word256))
 popThree ms@MS{stack=a1:a2:a3:s'} = Right (ms{stack=s'}, (a1,a2,a3))
 popThree _ = Left StackUnderflow
 
@@ -129,8 +126,7 @@ expandMem :: Word256 -> MachineState -> MachineState
 expandMem addr =
         let target = (fromIntegral addr + 32) `ceilDiv` 32
         in (updateMemSize target) . (updateMemVector target)
-
-ceilDiv x d = (x + d - 1) `div` d
+           where ceilDiv x d = (x + d - 1) `div` d
 
 updateMemSize :: Int -> MachineState -> MachineState
 updateMemSize target = memsize' ^%= (max (fromIntegral target))
@@ -143,7 +139,7 @@ updateMemVector target ms@MS{memory=origMem} =
               else ms
 
 setMem :: Int -> ByteArray -> MachineState -> MachineState
-setMem baddr val = memory' ^%= (\mem -> update mem (V.zip (V.fromList [1..]) val))
+setMem baddr val = memory' ^%= (\mem -> update mem (V.zip (V.fromList [baddr..]) val))
 
 getMem :: Int -> Int -> MachineState -> ByteArray
 getMem baddr len ms = slice baddr len (memory ms)
