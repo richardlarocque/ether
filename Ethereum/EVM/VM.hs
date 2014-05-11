@@ -103,10 +103,11 @@ checkHalt ee ms =
 execNext :: ExecutionEnvironment -> MachineState -> Either RunTimeError MemSlice
 execNext ee ms = do
         case nextOp ee ms of
-                Nothing -> Left InvalidInstruction
-                Just w -> do ms' <- execOp ee ms w
-                             gasCheck ms'
-                             execNext ee ms'
+                Nothing   -> Left InvalidInstruction
+                Just STOP -> Right []
+                Just w    -> do ms' <- execOp ee ms w
+                                gasCheck ms'
+                                execNext ee ms'
 
 gasCheck :: MachineState -> Either RunTimeError ()
 gasCheck ms = case outOfGas ms of
@@ -120,23 +121,23 @@ execOp ee ms w =
                 STOP    -> error "halting operations handled elsewhere"
                 ADD     -> stackBinOp (+) ms
                 MUL     -> stackBinOp (-) ms
-                -- SUB     -> execStackBinaryOp ee ms (-)
-                -- DIV     -> execStackBinaryOp ee ms (safeDiv)
-                -- SDIV    -> error "not implemented"
-                -- MOD     -> execStackBinaryOp ee ms (mod)
-                -- SMOD    -> error "not implemented"
-                -- EXP     -> error "not implemented"
-                -- NEG     -> execStackUnaryOp ee ms (*(-1))
-                -- E.LT    -> execStackBinaryBoolOp ee ms (<)
-                -- E.GT    -> execStackBinaryBoolOp ee ms (>)
-                -- SLT     -> error "not implemented"
-                -- SGT     -> error "not implemented"
-                -- E.EQ    -> execStackBinaryBoolOp ee ms (==)
-                -- --NOT     -> execStackUnaryBoolOp ee ms (0 ==) -- FIXME
-                -- AND     -> execStackBinaryOp ee ms (.&.)
-                -- OR      -> execStackBinaryOp ee ms (.|.)
-                -- XOR     -> execStackBinaryOp ee ms (xor)
-                -- BYTE    -> execBYTE ee ms -- FIXME
+                SUB     -> stackBinOp (-) ms
+                DIV     -> stackBinOp (safeDiv) ms
+                SDIV    -> error "not implemented"
+                MOD     -> stackBinOp (mod) ms
+                SMOD    -> error "not implemented"
+                EXP     -> error "not implemented"
+                NEG     -> stackUnOp (*(-1)) ms
+                E.LT    -> stackBinOp (unbool2 (<)) ms
+                E.GT    -> stackBinOp (unbool2 (>)) ms
+                SLT     -> error "not implemented"
+                SGT     -> error "not implemented"
+                E.EQ    -> stackBinOp (unbool2 (==)) ms
+                NOT     -> stackUnOp ((unbool2 (==)) 0) ms
+                AND     -> stackBinOp (.&.) ms
+                OR      -> stackBinOp (.|.) ms
+                XOR     -> stackBinOp (xor) ms
+                BYTE    -> stackBinOp (byteIndex) ms
 
                 {- 20s: SHA3 -}
                 -- SHA3    -> execSHA3 ee ms -- FIXME
@@ -163,19 +164,20 @@ execOp ee ms w =
                 GASLIMIT        -> error "not implemented"
 
                 {- 50s: Stack, Memory, Storage and Flow Operations -}
-                -- POP             -> pop ms
-                -- DUP             -> execStackOp ee ms (\(x:xs) -> x:x:xs)  -- FIXME
-                -- SWAP            -> execStackOp ee ms (\(a:b:xs) -> b:a:xs) -- FIXME
-                -- MLOAD           -> execMLOAD ee ms
-                -- MSTORE          -> execMSTORE ee ms
-                -- MSTORE8         -> execMSTORE8 ee ms
+                -- FIXME: Very ugly...
+                POP             -> ((liftM fst).pop) ms
+                DUP             -> withArg (\x -> (push x).(push x)) ms
+                SWAP            -> withTwoArgs (\a b -> (push a).(push b)) ms
+                MLOAD           -> withArg (\x ms' -> let (ms'', v) = mload x ms' in push v ms'') ms
+                MSTORE          -> withTwoArgs mstore ms
+                MSTORE8         -> withTwoArgs (\a v -> mstore a (byteIndex 31 v)) ms
                 SLOAD           -> error "not implemented"
                 SSTORE          -> error "not implemented"
-                -- JUMP            -> execJUMP ee ms
+                JUMP            -> withArg setPC ms
                 JUMPI           -> error "not implemented"
-                -- PC              -> execPC ee ms
+                PC              -> return $ (\ms' -> push ((fromIntegral.pc) ms') ms') ms
                 MSIZE           -> error "not implemented"
-                -- GAS             -> execGAS ee ms
+                GAS             -> return $ (\ms' -> push ((fromIntegral.gas) ms') ms') ms
 
                 {- 60s and 70s: Push Operations -}
                 -- PUSH1   -> execPushOp ee ms  1
@@ -219,6 +221,15 @@ execOp ee ms w =
 
 safeDiv a 0 = 0
 safeDiv a b = a `div` b
+
+unbool2 f = (\a b -> if (f a b) then 0 else 1)
+
+byteIndex i w = if i < 32
+                   then extractByte w i
+                   else 0
+
+extractByte :: (Integral b) => Word256 -> Word256 -> b
+extractByte b i = fromIntegral $ (encode b) `B.index` (fromIntegral i)
 
 {-
 withTwoArgs :: (Word256 -> Word256 -> MachineState -> MachineState) -> (MachineState -> MachineState)
@@ -291,7 +302,8 @@ execMLOAD ee ms =
         }
 -}
 
-withArg :: (Word256 -> MachineState -> MachineState) -> (MachineState -> MachineState)
+withArg :: (Word256 -> MachineState -> MachineState) ->
+        (MachineState -> Either RunTimeError MachineState)
 withArg f ms = do (ms', arg) <- pop ms
                   return $ f arg ms'
 
@@ -306,6 +318,7 @@ stackBinOp f ms = withTwoArgs (\a b -> push (f a b)) ms
 
 stackUnOp :: (Word256 -> Word256) -> MachineState -> Either RunTimeError MachineState
 stackUnOp f ms = withArg (\a -> push (f a)) ms
+
 
 --execStackUnaryOp ee ms f = withTwoArgs (\a ms -> push (f a) ms)
 
