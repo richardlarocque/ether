@@ -8,7 +8,6 @@ module Ethereum.EVM.ExecutionEnvironment(
        dlength
 ) where
 
-import Data.Array
 import Data.Word
 
 import Ethereum.SimpleTypes
@@ -24,22 +23,22 @@ data ExecutionEnvironment = EE {
         code :: Code
 }
 
-type Code = Array Integer Word8
+type Code = ByteArray
 
 startGas :: ExecutionEnvironment -> Gas
 startGas ee = (value ee) `div` (gasPrice ee)
 
-crange :: Integral a => (a, a) -> ExecutionEnvironment -> [Word8]
+crange :: Integral a => (a, a) -> ExecutionEnvironment -> ByteArray
 crange range = (brange range).code
 
 cbyte :: Integral a => a -> ExecutionEnvironment -> Word8
 cbyte i = (bbyte i).code
 
-clength :: ExecutionEnvironment -> Integer
+clength :: ExecutionEnvironment -> Int
 clength = blength.code
 
-drange :: Integral a => (a, a) -> ExecutionEnvironment -> [Word8]
+drange :: Integral a => (a, a) -> ExecutionEnvironment -> ByteArray
 drange range = (brange range).input
 
-dlength :: ExecutionEnvironment -> Integer
+dlength :: ExecutionEnvironment -> Int
 dlength = blength.input

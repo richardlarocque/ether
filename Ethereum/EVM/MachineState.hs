@@ -28,22 +28,24 @@ module Ethereum.EVM.MachineState(
         popThree,
         outOfGas) where
 
-import Data.Array
 import Data.LargeWord
 import Data.Lens.Common
 import Data.Maybe
 import Data.Word
+import Data.Vector as V
 import qualified Data.Map as M
 
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.InstructionSet
 import Ethereum.SimpleTypes
 
+type Memory = ByteArray
+
 -- |The machine state tuple defined in section 9.4.
 data MachineState = MS {
         gas :: Gas,
         pc :: Integer,
-        memory :: Memory,
+        memory :: ByteArray,
         memsize :: Integer,
         stack :: Stack
 }
@@ -52,19 +54,17 @@ initialState :: ExecutionEnvironment -> MachineState
 initialState ee = MS {
         gas = startGas ee,
         pc = 0,
-        memory = M.empty,
+        memory = V.replicate 512 0,
         memsize = 0,
         stack = []
 }
 
 mstore :: Word256 -> Word256 -> MachineState -> MachineState
-mstore addr value = (setMem addr value) . (expandMem addr)
-
-mstorerange :: Word256 -> [Word8] -> MachineState -> MachineState
-mstore addr value =
+mstore addr value = (setMem (fromIntegral $ addr*32) (toBytes value)) . (expandMem addr)
 
 mload :: Word256 -> MachineState -> (MachineState, Word256)
-mload addr ms = (expandMem addr ms, getMem addr ms)
+mload addr ms = let ms' = expandMem addr ms
+                in (ms', fromBytes $ getMem (fromIntegral $ addr*32) 32 ms')
 
 push :: Word256 -> MachineState -> MachineState
 push x = stack' ^%= (x:)
@@ -92,7 +92,7 @@ incPC = pc' ^+= 1
 -- Equation 86
 getOp :: ExecutionEnvironment -> MachineState -> Maybe Instruction
 getOp ee ms =
-        if pc ms < clength ee
+        if pc ms < (fromIntegral $ clength ee)
            then fromOpcode $ cbyte (pc ms) ee
            else Just STOP
 
@@ -111,13 +111,24 @@ pc' :: Lens MachineState Integer
 pc' = lens (pc) (\x ms -> ms {pc=x})
 
 expandMem :: Word256 -> MachineState -> MachineState
-expandMem addr = memsize' ^%= (\oldsize -> max oldsize (roundedRange addr))
-        where roundedRange a = (fromIntegral a + 32) `ceilDiv` 32
-              ceilDiv x d = (x + d - 1) `div` d
+expandMem addr =
+        let target = (fromIntegral addr + 32) `ceilDiv` 32
+        in (updateMemSize target) . (updateMemVector target)
+        where ceilDiv x d = (x + d - 1) `div` d
 
-setMem :: Word256 -> Word256 -> MachineState -> MachineState
-setMem addr value = memory' ^%= (M.insert addr value)
+updateMemSize :: Int -> MachineState -> MachineState
+updateMemSize target = memsize' ^%= (max (fromIntegral target))
 
-getMem :: Word256 -> MachineState -> Word256
-getMem addr = (fromMaybe 0) . (M.lookup addr) . (getL memory')
+updateMemVector :: Int -> MachineState -> MachineState
+updateMemVector target ms@MS{memory=origMem} =
+        let origSize = blength origMem
+        in if (origSize < target)
+              then ms {memory= origMem V.++ (V.replicate origSize 0)}
+              else ms
+
+setMem :: Int -> ByteArray -> MachineState -> MachineState
+setMem baddr val = memory' ^%= (\mem -> update mem (V.zip (V.fromList [1..]) val))
+
+getMem :: Int -> Int -> MachineState -> ByteArray
+getMem baddr len ms = slice baddr len (memory ms)
 

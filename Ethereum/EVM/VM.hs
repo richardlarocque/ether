@@ -14,7 +14,6 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 9
 module Ethereum.EVM.VM where
 
 import Control.Monad
-import Data.Array
 import Data.Binary
 import Data.Bits
 import Data.Digest.Pure.SHA
@@ -77,9 +76,9 @@ execOp w ee ms =
                 ORIGIN          -> noArgs ((push.fromAddress) (origin ee)) ms
                 CALLER          -> noArgs ((push.fromAddress) (caller ee)) ms
                 CALLVALUE       -> noArgs ((push.fromEther) (value ee)) ms
-                CALLDATALOAD    -> withArg (\a -> (push.recode) $ drange (a,a+32) ee) ms
+                CALLDATALOAD    -> withArg (\a -> (push.fromBytes) $ drange (a,a+32) ee) ms
                 CALLDATASIZE    -> noArgs ((push.fromIntegral) $ dlength ee) ms
-                CALLDATACOPY    -> withThreeArgs (\maddr daddr len -> 
+                -- CALLDATACOPY    -> withThreeArgs (\maddr daddr len -> 
                 CODESIZE        -> error "not implemented"
                 CODECOPY        -> error "not implemented"
                 GASPRICE        -> error "not implemented"
@@ -190,9 +189,6 @@ stackUnOp f ms = withArg (\a -> push (f a)) ms
 pushOp :: Word256 -> ExecutionEnvironment -> MachineState -> Either RunTimeError MachineState
 pushOp l _ _ | l > 32 = error "Invalid push length argument"
 pushOp l ee ms = let s = fromIntegral $ (pc ms) + 1
-                     v = recode $ crange (s, s+l) ee
+                     v = fromBytes $ crange (s, s+l) ee
                  in return $ push v ms
-
-recode :: [Word8] -> Word256
-recode = decode.encode.B.pack
 

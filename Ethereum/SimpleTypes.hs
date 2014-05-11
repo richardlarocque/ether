@@ -11,7 +11,6 @@ Portability :  non-portable (Unknown portability)
 
 module Ethereum.SimpleTypes (
         Gas,
-        Memory,
         MemSlice,
         Stack,
         Address(..),
@@ -22,20 +21,24 @@ module Ethereum.SimpleTypes (
         fromEther,
         brange,
         bbyte,
-        blength) where
+        blength,
+        fromBytes,
+        toBytes
+) where
 
+import Data.Binary
+import Data.ByteString as B
 import Data.LargeWord
 import Data.Word
-import Data.Array
+import Data.Vector as V
 import qualified Data.Map as M
 
 type Gas = Integer
-type Memory = M.Map Word256 Word256
 type MemSlice = [Word256]
 type Stack = [Word256]
 data Address = Address
 type Ether = Integer
-type ByteArray = Array Integer Word8
+type ByteArray = Vector Word8
 
 data RunTimeError = OutOfGas
                   | InvalidInstruction
@@ -49,11 +52,21 @@ fromAddress a = 0  -- FIXME
 fromEther :: Ether -> Word256
 fromEther e = 0  -- FIXME
 
-brange :: Integral a => (a, a) -> ByteArray -> [Word8]
-brange (start, end) bs = map (\i -> bbyte i bs) [start..end-1]
+-- FIXME: brange and bbyte need to support out of range
+brange :: Integral a => (a, a) -> ByteArray -> ByteArray
+brange (start, end) = slice (fromIntegral start) (fromIntegral end)
 
 bbyte :: Integral a => a -> ByteArray -> Word8
 bbyte i bs = bs ! (fromIntegral i)
 
-blength :: ByteArray -> Integer
-blength = snd.bounds
+blength :: ByteArray -> Int
+blength = V.length
+
+-- Converts a vector of big-endian bytes to a Word256
+-- TODO: Do better than this?
+fromBytes :: ByteArray -> Word256
+fromBytes bs | V.length bs > 32 = error "Input list too long"
+fromBytes bs = (decode . encode . B.pack . V.toList) bs
+
+toBytes :: Word256 -> ByteArray
+toBytes = V.fromList . B.unpack . decode . encode
