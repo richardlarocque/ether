@@ -29,16 +29,16 @@ module Ethereum.SimpleTypes (
 ) where
 
 import Data.Binary
-import Data.ByteString.Lazy as B
 import Data.LargeWord
-import Data.Vector as V
+import qualified Data.ByteString.Lazy as B
+import qualified Data.Vector as V
 
 type Gas = Integer
-type MemSlice = Vector Word8
+type MemSlice = V.Vector Word8
 type Stack = [Word256]
 data Address = Address
 type Ether = Integer
-type ByteArray = Vector Word8
+type ByteArray = V.Vector Word8
 
 data RunTimeError = OutOfGas
                   | InvalidInstruction
@@ -54,10 +54,10 @@ fromEther _ = 0  -- FIXME
 
 -- FIXME: brange and bbyte need to support out of range
 brange :: Integral a => (a, a) -> ByteArray -> ByteArray
-brange (start, end) = slice (fromIntegral start) (fromIntegral end)
+brange (start, len) = V.slice (fromIntegral start) (fromIntegral len)
 
 bbyte :: Integral a => a -> ByteArray -> Word8
-bbyte i bs = bs ! (fromIntegral i)
+bbyte i bs = bs V.! (fromIntegral i)
 
 blength :: ByteArray -> Int
 blength = V.length
@@ -66,13 +66,14 @@ blength = V.length
 -- TODO: Do better than this?
 fromBytes :: ByteArray -> Word256
 fromBytes bs | V.length bs > 32 = error "Input list too long"
-fromBytes bs = (decode . encode . B.pack . V.toList) bs
+fromBytes bs = (decode . B.pack . pad . V.toList) bs
+        where pad xs = (replicate (32 - (length xs)) 0) ++ xs
 
 toBytes :: Word256 -> ByteArray
-toBytes = V.fromList . B.unpack . decode . encode
+toBytes = V.fromList . B.unpack . encode
 
 emptyMemSlice :: MemSlice
 emptyMemSlice = V.empty
 
-memToByteString :: ByteArray -> ByteString
+memToByteString :: ByteArray -> B.ByteString
 memToByteString = B.pack . V.toList

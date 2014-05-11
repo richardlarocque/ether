@@ -29,11 +29,15 @@ module Ethereum.EVM.MachineState(
         pop,
         popTwo,
         popThree,
-        outOfGas) where
+        outOfGas,
+        showStack
+) where
 
 import Data.LargeWord
 import Data.Lens.Common
 import Data.Vector as V
+
+import Debug.Trace
 
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.InstructionSet
@@ -122,6 +126,7 @@ stack' = lens (stack) (\x ms -> ms {stack=x})
 pc' :: Lens MachineState Integer
 pc' = lens (pc) (\x ms -> ms {pc=x})
 
+-- TODO: I think this is not quite right in range case...
 expandMem :: Word256 -> MachineState -> MachineState
 expandMem addr =
         let target = (fromIntegral addr + 32) `ceilDiv` 32
@@ -144,3 +149,5 @@ setMem baddr val = memory' ^%= (\mem -> update mem (V.zip (V.fromList [baddr..])
 getMem :: Int -> Int -> MachineState -> ByteArray
 getMem baddr len ms = slice baddr len (memory ms)
 
+showStack :: MachineState -> String
+showStack = show.stack

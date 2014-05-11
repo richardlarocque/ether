@@ -38,9 +38,10 @@ execNext ee ms = do
                 Just SUICIDE    -> Right emptyMemSlice
                 Just RETURN     -> do (ms', (start, len)) <- popTwo ms
                                       return $ snd $ (mloadrange start len ms')
+                Just w          -> step w ee ms
 
 step :: Instruction -> ExecutionEnvironment -> MachineState -> Either RunTimeError MemSlice
-step w ee ms = do ms' <- trace ms $ execOp w ee ms
+step w ee ms = do ms' <- execOp w ee ms
                   ms'' <- updatePC w ms'
                   gasCheck ms''
                   execNext ee ms''
@@ -64,7 +65,7 @@ execOp w ee = case w of
        {- 0s: Stop and Arithmetic Operations -}
         STOP    -> error "halting operations handled elsewhere"
         ADD     -> stackBinOp (+)
-        MUL     -> stackBinOp (-)
+        MUL     -> stackBinOp (*)
         SUB     -> stackBinOp (-)
         DIV     -> stackBinOp (safeDiv)
         SDIV    -> error "not implemented"
@@ -95,14 +96,14 @@ execOp w ee = case w of
         ORIGIN          -> noArgs ((push.fromAddress) (origin ee))
         CALLER          -> noArgs ((push.fromAddress) (caller ee))
         CALLVALUE       -> noArgs ((push.fromEther) (value ee))
-        CALLDATALOAD    -> withArg (\a -> (push.fromBytes) $ drange (a,a+32) ee)
+        CALLDATALOAD    -> withArg (\a -> (push.fromBytes) $ drange (a,32) ee)
         CALLDATASIZE    -> noArgs ((push.fromIntegral) $ dlength ee)
         CALLDATACOPY    -> withThreeArgs $
-                \maddr daddr len -> let bytes = drange (daddr, daddr+len) ee
+                \maddr daddr len -> let bytes = drange (daddr, len) ee
                                     in mstorerange maddr bytes
         CODESIZE        -> noArgs ((push.fromIntegral) $ clength ee)
         CODECOPY        -> withThreeArgs $
-                \maddr caddr len -> let bytes = crange (caddr, caddr+len) ee
+                \maddr caddr len -> let bytes = crange (caddr, len) ee
                                     in mstorerange maddr bytes
 
         GASPRICE        -> noArgs ((push.fromEther) (gasPrice ee))
@@ -175,8 +176,8 @@ safeDiv ::  Integral a => a -> a -> a
 safeDiv _ 0 = 0
 safeDiv a b = a `div` b
 
-unbool2 ::  (t -> t1 -> Bool) -> t -> t1 -> Word256
-unbool2 f = (\a b -> if (f a b) then 0 else 1)
+unbool2 ::  (Word256 -> Word256 -> Bool) -> Word256 -> Word256 -> Word256
+unbool2 f =  (\a b -> if (f a b) then 1 else 0)
 
 byteIndex ::  Integral b => Word256 -> Word256 -> b
 byteIndex i w = if i < 32
@@ -214,5 +215,5 @@ stackUnOp f ms = withArg (\a -> push (f a)) ms
 pushOp :: Word256 -> ExecutionEnvironment -> MachineState -> Either RunTimeError MachineState
 pushOp l _ _ | l > 32 = error "Invalid push length argument"
 pushOp l ee ms = let s = fromIntegral $ (pc ms) + 1
-                     v = fromBytes $ crange (s, s+l) ee
+                     v = fromBytes $ crange (s, l) ee
                  in return $ ((addPC l) . (push v)) ms
