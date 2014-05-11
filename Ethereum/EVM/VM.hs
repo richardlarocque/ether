@@ -38,10 +38,12 @@ execNext ee ms = do
                 Just SUICIDE    -> Right emptyMemSlice
                 Just RETURN     -> do (ms', (start, len)) <- popTwo ms
                                       return $ snd $ (mloadrange start len ms')
-                Just w          -> do ms' <- execOp w ee ms
-                                      ms'' <- updatePC w ms'
-                                      gasCheck ms''
-                                      execNext ee ms''
+
+step :: Instruction -> ExecutionEnvironment -> MachineState -> Either RunTimeError MemSlice
+step w ee ms = do ms' <- trace ms $ execOp w ee ms
+                  ms'' <- updatePC w ms'
+                  gasCheck ms''
+                  execNext ee ms''
 
 gasCheck :: MachineState -> Either RunTimeError ()
 gasCheck ms = case outOfGas ms of
