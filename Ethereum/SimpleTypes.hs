@@ -23,7 +23,8 @@ module Ethereum.SimpleTypes (
         bbyte,
         blength,
         fromBytes,
-        toBytes
+        toBytes,
+        emptyMemSlice
 ) where
 
 import Data.Binary
@@ -34,7 +35,7 @@ import Data.Vector as V
 import qualified Data.Map as M
 
 type Gas = Integer
-type MemSlice = [Word256]
+type MemSlice = Vector Word8
 type Stack = [Word256]
 data Address = Address
 type Ether = Integer
@@ -70,3 +71,5 @@ fromBytes bs = (decode . encode . B.pack . V.toList) bs
 
 toBytes :: Word256 -> ByteArray
 toBytes = V.fromList . B.unpack . decode . encode
+
+emptyMemSlice = V.empty

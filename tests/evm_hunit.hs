@@ -1,10 +1,11 @@
 module Main where
 
+import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.InstructionSet
 import Ethereum.EVM.VM
 import Ethereum.SimpleTypes
 
-import Data.Array
+import qualified Data.Vector as V
 import Data.Word
 import Test.Framework
 import Test.Framework.Providers.HUnit
@@ -13,27 +14,27 @@ import Test.HUnit
 data CodeByte = I Instruction
               | D Word8
 
-compile :: [CodeByte] -> Array Integer Word8
-compile bs = listArray (0, fromIntegral$length bs) (map compileByte bs)
+compile :: [CodeByte] -> V.Vector Word8
+compile bs = V.fromList (map compileByte bs)
         where compileByte b = case b of
                 I i -> toOpcode i
                 D v -> v
 
 simpleProgram :: [CodeByte] -> ExecutionEnvironment
 simpleProgram instructions =
-  EE { owner=Address,
-       sender=Address,
+  EE { address=Address,
+       origin=Address,
        gasPrice=5,
-       input=[],
-       execCause=Address,
+       input=emptyMemSlice,
+       caller=Address,
        value=500000,
        code=compile instructions };
 
 runCodeTest :: [CodeByte] -> Either RunTimeError MemSlice -> Assertion
-runCodeTest c v = assert $ (runVM (simpleProgram c)) ==  v
+runCodeTest c v = assert $ (execute (simpleProgram c)) ==  v
 
 runBinOpTest :: Instruction -> Either RunTimeError MemSlice -> Assertion
-runBinOpTest op v = assert $ (runVM (binOpTestWrapper op)) == v
+runBinOpTest op v = assert $ (execute (binOpTestWrapper op)) == v
         where binOpTestWrapper i =
                 simpleProgram
                 [ I PUSH1   -- Arguments to RETURN
@@ -62,11 +63,11 @@ tests = [
         testGroup "Halts and Exceptions" [ 
                 testCase "invalidInstruction" $ runCodeTest [D 0xfa] (Left InvalidInstruction),
                 testCase "stackUnderflow" $ runCodeTest [I ADD] (Left StackUnderflow),
-                testCase "stop" $ runCodeTest [I STOP] (Right [])
+                testCase "stop" $ runCodeTest [I STOP] (Right emptyMemSlice)
                 ],
         testGroup "Binary Operations" [
-                testCase "ADD" $ runBinOpTest ADD (Right [8]),
-                testCase "SUB" $ runBinOpTest SUB (Right [2])
+                testCase "ADD" $ runBinOpTest ADD (Right (V.fromList [8])),
+                testCase "SUB" $ runBinOpTest SUB (Right (V.fromList [2]))
                 ]
         ]
 

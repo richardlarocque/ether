@@ -1,5 +1,6 @@
 module Ethereum.EVM.ExecutionEnvironment(
-       ExecutionEnvironment(address,origin,caller,value),
+       --ExecutionEnvironment(address,origin,caller,value,gasPrice),
+       ExecutionEnvironment(..),
        startGas,
        crange,
        cbyte,

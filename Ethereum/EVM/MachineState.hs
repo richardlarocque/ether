@@ -17,10 +17,13 @@ module Ethereum.EVM.MachineState(
         gas,
         setPC,
         incPC,
+        addPC,
         getOp,
         initialState,
         mstore,
+        mstorerange,
         mload,
+        mloadrange,
         crange,
         push,
         pop,
@@ -62,9 +65,18 @@ initialState ee = MS {
 mstore :: Word256 -> Word256 -> MachineState -> MachineState
 mstore addr value = (setMem (fromIntegral $ addr*32) (toBytes value)) . (expandMem addr)
 
+-- FIXME: There's no way this is correct, is there?
+mstorerange :: Word256 -> ByteArray -> MachineState -> MachineState
+mstorerange addr value = let addr' = fromIntegral $ addr
+                         in (setMem (addr'*32) value) . (expandMem (fromIntegral (addr'*32 + blength value) `ceilDiv` 32))
+
 mload :: Word256 -> MachineState -> (MachineState, Word256)
 mload addr ms = let ms' = expandMem addr ms
                 in (ms', fromBytes $ getMem (fromIntegral $ addr*32) 32 ms')
+
+mloadrange :: Word256 -> Word256 -> MachineState -> (MachineState, ByteArray)
+mloadrange start len  ms = let ms' = expandMem (fromIntegral 32*(start+len)) ms
+                           in (ms', getMem (fromIntegral $ start) (fromIntegral len) ms')
 
 push :: Word256 -> MachineState -> MachineState
 push x = stack' ^%= (x:)
@@ -88,6 +100,9 @@ setPC x = pc' ^= fromIntegral x
 
 incPC :: MachineState -> MachineState
 incPC = pc' ^+= 1
+
+addPC :: (Integral a) => a -> MachineState -> MachineState
+addPC n = pc' ^+= (fromIntegral n)
 
 -- Equation 86
 getOp :: ExecutionEnvironment -> MachineState -> Maybe Instruction
@@ -114,7 +129,8 @@ expandMem :: Word256 -> MachineState -> MachineState
 expandMem addr =
         let target = (fromIntegral addr + 32) `ceilDiv` 32
         in (updateMemSize target) . (updateMemVector target)
-        where ceilDiv x d = (x + d - 1) `div` d
+
+ceilDiv x d = (x + d - 1) `div` d
 
 updateMemSize :: Int -> MachineState -> MachineState
 updateMemSize target = memsize' ^%= (max (fromIntegral target))
