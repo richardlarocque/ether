@@ -43,6 +43,7 @@ unOpTest ::  Instruction -> Word256 -> Word256 -> Test.Framework.Test
 unOpTest op a v = testCase name $ runUnOpTest op a v
         where name = show op ++ " " ++ show a
 
+runUnOpTest ::  Instruction -> Word256 -> Word256 -> Assertion
 runUnOpTest op a e = Right (toBytes e) @=? (execute unOpTestWrapper)
         where unOpTestWrapper =
                 simpleProgram
@@ -101,20 +102,51 @@ tests = [
         testGroup "Unary Operations" [
                 unOpTest NEG    5 (twosComp 5),
                 unOpTest NEG    0 0,
-                unOpTest NEG    (twosComp 256) 256
-                -- unOpTest NOT
+                unOpTest NEG    (twosComp 256) 256,
+
+                unOpTest NOT    0 1,
+                unOpTest NOT    1 0,
+                unOpTest NOT    3 0
                 ],
         testGroup "Binary Operations" [
                 binOpTest ADD   5 3 8,
                 binOpTest MUL   5 3 15,
                 binOpTest SUB   5 3 2,
+
                 binOpTest DIV   5 3 1,
+
+                binOpTest SDIV  5 3 1,
+                binOpTest SDIV  (twosComp 5) 3 (twosComp 1),
+                binOpTest SDIV  (twosComp 5) (twosComp 3) 1,
+
                 binOpTest MOD   5 3 2,
+                binOpTest SMOD  5 3 2,
+                binOpTest SMOD  (twosComp 5) 3 (twosComp 2),
+                binOpTest SMOD  (twosComp 5) (twosComp 3) 2,
+
+                binOpTest EXP   5 3 125,
+                binOpTest EXP   4 0 1,
 
                 binOpTest E.LT  5 3 0,
                 binOpTest E.LT  3 5 1,
+                binOpTest E.LT  (twosComp 1) 1 0,
+
+                binOpTest SLT   5 3 0,
+                binOpTest SLT   3 5 1,
+                binOpTest SLT   (twosComp 1) 1 1,
+                binOpTest SLT   (twosComp 3) (twosComp 2) 1,
+                binOpTest SLT   1 1 0,
+
                 binOpTest E.GT  5 3 1,
                 binOpTest E.GT  3 5 0,
+                binOpTest E.GT  (twosComp 1) 1 1,
+
+                binOpTest SGT   5 3 1,
+                binOpTest SGT   3 5 0,
+                binOpTest SGT   (twosComp 1) 1 0,
+                binOpTest SGT   (twosComp 3) (twosComp 2) 0,
+                binOpTest SGT   1 1 0,
+
                 binOpTest E.EQ  5 3 0,
                 binOpTest E.EQ  5 5 1,
 

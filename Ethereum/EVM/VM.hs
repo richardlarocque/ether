@@ -68,15 +68,15 @@ execOp w ee = case w of
         MUL     -> stackBinOp (*)
         SUB     -> stackBinOp (-)
         DIV     -> stackBinOp (safeDiv)
-        SDIV    -> error "not implemented"
+        SDIV    -> stackBinOp (withSign safeDiv)
         MOD     -> stackBinOp (mod)
-        SMOD    -> error "not implemented"
-        EXP     -> error "not implemented"
-        NEG     -> stackUnOp (*(-1))
+        SMOD    -> stackBinOp (withSign mod)
+        EXP     -> stackBinOp (^)
+        NEG     -> stackUnOp ((1+).complement)
         E.LT    -> stackBinOp (unbool2 (<))
         E.GT    -> stackBinOp (unbool2 (>))
-        SLT     -> error "not implemented"
-        SGT     -> error "not implemented"
+        SLT     -> stackBinOp (unbool2 (\a b -> (a - b) `testBit` 255))
+        SGT     -> stackBinOp (unbool2 (\a b -> (b - a) `testBit` 255))
         E.EQ    -> stackBinOp (unbool2 (==))
         NOT     -> stackUnOp ((unbool2 (==)) 0)
         AND     -> stackBinOp (.&.)
@@ -183,6 +183,22 @@ byteIndex ::  Integral b => Word256 -> Word256 -> b
 byteIndex i w = if i < 32
                    then extractByte w i
                    else 0
+
+-- Check the sign bit
+isNeg ::  Word256 -> Bool
+isNeg = (flip testBit) 255
+
+-- Two's complement
+neg ::  Word256 -> Word256
+neg = (1+).complement
+
+-- Adding signs to div and mod
+withSign ::  (Word256 -> Word256 -> Word256) -> (Word256 -> Word256 -> Word256)
+withSign f = (\a b -> let (aNeg, a') = unsign a
+                          (bNeg, b') = unsign b
+                      in resign aNeg bNeg $ f a' b')
+                      where unsign x = if isNeg x then (True, neg x) else (False, x)
+                            resign s1 s2 x = if s1 `xor` s2 then neg x else x
 
 extractByte :: (Integral b) => Word256 -> Word256 -> b
 extractByte b i = fromIntegral $ (encode b) `B.index` (fromIntegral i)
