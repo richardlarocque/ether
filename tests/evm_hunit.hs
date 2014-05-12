@@ -13,75 +13,84 @@ import Ethereum.EVM.InstructionSet as E
 import Ethereum.EVM.VM
 import Ethereum.SimpleTypes
 
-data Assemble = I Instruction
-              | D Word8
-              | P1 Word8
-              | P32 Word256
+p32 :: Integral a => a -> [Word8]
+p32 x = let x' = (fromIntegral x) :: Word256
+        in op PUSH32 ++ (V.toList.toBytes) x'
 
-compile :: [Assemble] -> V.Vector Word8
-compile bs = V.fromList (concatMap compile' bs)
-        where compile' b = case b of
-                I i     -> [toOpcode i]
-                D d     -> [d]
-                P1 v    -> (toOpcode PUSH1):[v]
-                P32 v   -> (toOpcode PUSH32):((V.toList.toBytes) v)
+p1 :: Word8 -> [Word8]
+p1 x = op PUSH1 ++ [x]
 
-simpleProgram :: [Assemble] -> ExecutionEnvironment
-simpleProgram instructions =
+op :: Instruction -> [Word8]
+op o = [toOpcode o]
+
+unOp :: Instruction -> [Word8] -> [Word8]
+unOp i a = a ++ (op i)
+
+binOp :: Instruction -> [Word8] -> [Word8] -> [Word8]
+binOp i a1 a2 = a2 ++ a1 ++ (op i)
+
+triOp :: Instruction -> [Word8] -> [Word8] -> [Word8] -> [Word8]
+triOp i a1 a2 a3 = a3 ++ a2 ++ a1 ++ (op i)
+
+-- Stores the given data in memory
+-- A bit convoluted, but it saves us the trouble of setting up a symbol table.
+memLiteral :: Word256 -> [Word8]  -> [Word8]
+memLiteral memOffset literal =
+        let len = length literal
+            lenArg = p32 len
+            codeAddrArg = binOp ADD (op PC) (p32 72)
+            memAddrArg = p32 memOffset
+            jmpAddrArg = binOp ADD (op PC) (p32 (len + 3))
+        in (triOp CODECOPY memAddrArg codeAddrArg lenArg)
+           ++ (unOp JUMP jmpAddrArg)
+           ++ literal
+
+-- Stores the top of the stack at memory zero.
+basicMstore :: [Word8]  -> [Word8]
+basicMstore xs = xs ++ p1 0 ++ [ toOpcode MSTORE ]
+
+-- Returns the top element of the stack.
+basicReturn :: [Word8]  -> [Word8]
+basicReturn xs = p1 32 ++ p1 0 ++ (basicMstore xs) ++ [ toOpcode RETURN ]
+
+simpleProgram :: [Word8] -> ExecutionEnvironment
+simpleProgram is =
   EE { address=Address,
        origin=Address,
        gasPrice=5,
        input=emptyMemSlice,
        caller=Address,
        value=500000,
-       code=compile instructions };
+       code= V.fromList is };
 
-runCodeTest :: [Assemble] -> Either RunTimeError MemSlice -> Assertion
+simpleExec ::  [Word8] -> Either RunTimeError MemSlice
+simpleExec = execute.simpleProgram
+
+runCodeTest :: [Word8] -> Either RunTimeError MemSlice -> Assertion
 runCodeTest c v = assert $ (execute (simpleProgram c)) ==  v
 
 unOpTest ::  Instruction -> Word256 -> Word256 -> Test.Framework.Test
-unOpTest op a v = testCase name $ runUnOpTest op a v
+unOpTest op a v = testCase name (expect @=? result)
         where name = show op ++ " " ++ show a
-
-runUnOpTest ::  Instruction -> Word256 -> Word256 -> Assertion
-runUnOpTest op a e = Right (toBytes e) @=? (execute unOpTestWrapper)
-        where unOpTestWrapper =
-                simpleProgram
-                [ P1 32         -- Arguments to RETURN
-                , P1 0
-
-                , P32 a         -- Argument to 'i'
-                , I op
-
-                , P1 0          -- Argument to MSTORE
-
-                , I MSTORE
-                , I RETURN
-                ]
+              expect = Right (toBytes v)
+              result = simpleExec ( basicReturn $ unOp op (p32 a) )
 
 binOpTest ::  Instruction -> Word256 -> Word256 -> Word256 -> Test.Framework.Test
-binOpTest op a1 a2 v = testCase name $ runBinOpTest op a1 a2 v
+binOpTest op a1 a2 v = testCase name (expect @=? result)
         where name = show a1 ++ " " ++ show op ++ " " ++ show a2
+              expect = Right (toBytes v)
+              result = simpleExec ( basicReturn $ binOp op (p32 a1) (p32 a2) )
 
-runBinOpTest ::  Instruction -> Word256 -> Word256 -> Word256 -> Assertion
-runBinOpTest op a1 a2 e = Right (toBytes e) @=? (execute binOpTestWrapper) 
-        where binOpTestWrapper =
-                simpleProgram
-                [ P1 32         -- Arguments to RETURN
-                , P1 0
-
-                , P32 a2        -- Arguments to 'i'
-                , P32 a1
-                , I op
-
-                , P1 0          -- Argument to MSTORE
-
-                , I MSTORE
-                , I RETURN
-                ]
+sha3Test ::   String -> [Word8] -> Word256 -> Test.Framework.Test
+sha3Test name val e = testCase name (expect @=? result)
+        where expect = Right (toBytes e)
+              result = simpleExec $ basicReturn (putMem ++ hashMem)
+              memAddr = 100
+              memLen = length val
+              putMem = memLiteral memAddr val
+              hashMem = binOp SHA3 (p32 memAddr) (p32 (length val))
 
 -- TODO: Infinite loop into out of gas.
--- TODO: Suicide test needs a stack argument for some reason.
 -- TODO: Genericize test cases.
 --       Should be able to output them to file or something.
 
@@ -95,9 +104,9 @@ tests = [
                 ],
 
         testGroup "Halts and Exceptions" [ 
-                testCase "invalidInstruction" $ runCodeTest [D 0xfa] (Left InvalidInstruction),
-                testCase "stackUnderflow" $ runCodeTest [I ADD] (Left StackUnderflow),
-                testCase "stop" $ runCodeTest [I STOP] (Right emptyMemSlice)
+                testCase "invalidInstruction" $ runCodeTest [0xfa] (Left InvalidInstruction),
+                testCase "stackUnderflow" $ runCodeTest (op ADD) (Left StackUnderflow),
+                testCase "stop" $ runCodeTest (op STOP) (Right emptyMemSlice)
                 ],
         testGroup "Unary Operations" [
                 unOpTest NEG    5 (twosComp 5),
@@ -154,6 +163,10 @@ tests = [
                 binOpTest OR    5 3 7,
                 binOpTest XOR   5 3 6,
                 binOpTest BYTE  5 3 0
+                ],
+        testGroup "sha3" [
+                -- According to Wikipedia, this is the hash for Kekkak-256.
+                sha3Test "()" [] 89477152217924674838424037953991966239322087453347756267410168184682657981552
                 ]
         ]
 

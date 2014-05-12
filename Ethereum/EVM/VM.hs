@@ -15,10 +15,12 @@ module Ethereum.EVM.VM where
 
 import Control.Monad
 import Data.Binary
+import Data.Byteable
 import Data.Bits
-import Data.Digest.Pure.SHA
+import Crypto.Hash
 import Data.LargeWord
-import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
 
 import Ethereum.EVM.InstructionSet as E
 import Ethereum.EVM.MachineState
@@ -87,8 +89,9 @@ execOp w ee = case w of
         {- 20s: SHA3 -}
         SHA3    -> withTwoArgs $ \a len ms ->
                 let (ms', bytes) = mloadrange a len ms
-                    hashed = integerDigest $ sha256 $ memToByteString bytes
-                in (push.fromIntegral) hashed ms'
+                    hashed = (hash $ memToByteString bytes) :: Digest SHA3_256
+                    asWord256 = (decode . BL.fromStrict . Data.Byteable.toBytes) hashed :: Word256
+                in push asWord256 ms'
 
         {- 30s: Environment -}
         ADDRESS         -> noArgs ((push.fromAddress) (address ee))
@@ -201,7 +204,7 @@ withSign f = (\a b -> let (aNeg, a') = unsign a
                             resign s1 s2 x = if s1 `xor` s2 then neg x else x
 
 extractByte :: (Integral b) => Word256 -> Word256 -> b
-extractByte b i = fromIntegral $ (encode b) `B.index` (fromIntegral i)
+extractByte b i = fromIntegral $ (encode b) `BL.index` (fromIntegral i)
 
 noArgs :: (MachineState -> MachineState) -> (MachineState -> Either RunTimeError MachineState)
 noArgs f = return.f

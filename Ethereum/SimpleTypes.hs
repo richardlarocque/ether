@@ -30,7 +30,8 @@ module Ethereum.SimpleTypes (
 
 import Data.Binary
 import Data.LargeWord
-import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as V
 
 type Gas = Integer
@@ -66,11 +67,11 @@ blength = V.length
 -- TODO: Do better than this?
 fromBytes :: ByteArray -> Word256
 fromBytes bs | V.length bs > 32 = error "Input list too long"
-fromBytes bs = (decode . B.pack . pad . V.toList) bs
+fromBytes bs = (decode . BL.pack . pad . V.toList) bs
         where pad xs = (replicate (32 - (length xs)) 0) ++ xs
 
 toBytes :: Word256 -> ByteArray
-toBytes = V.fromList . B.unpack . encode
+toBytes = V.fromList . BL.unpack . encode
 
 emptyMemSlice :: MemSlice
 emptyMemSlice = V.empty
