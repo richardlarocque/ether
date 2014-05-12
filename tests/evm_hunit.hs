@@ -2,6 +2,7 @@ module Main where
 
 import qualified Data.Vector as V
 import Data.Word
+import Data.Bits
 import Data.LargeWord
 import Test.Framework
 import Test.Framework.Providers.HUnit
@@ -12,16 +13,20 @@ import Ethereum.EVM.InstructionSet as E
 import Ethereum.EVM.VM
 import Ethereum.SimpleTypes
 
-data CodeByte = I Instruction
+data Assemble = I Instruction
               | D Word8
+              | P1 Word8
+              | P32 Word256
 
-compile :: [CodeByte] -> V.Vector Word8
-compile bs = V.fromList (map compileByte bs)
-        where compileByte b = case b of
-                I i -> toOpcode i
-                D v -> v
+compile :: [Assemble] -> V.Vector Word8
+compile bs = V.fromList (concatMap compile' bs)
+        where compile' b = case b of
+                I i     -> [toOpcode i]
+                D d     -> [d]
+                P1 v    -> (toOpcode PUSH1):[v]
+                P32 v   -> (toOpcode PUSH32):((V.toList.toBytes) v)
 
-simpleProgram :: [CodeByte] -> ExecutionEnvironment
+simpleProgram :: [Assemble] -> ExecutionEnvironment
 simpleProgram instructions =
   EE { address=Address,
        origin=Address,
@@ -31,30 +36,44 @@ simpleProgram instructions =
        value=500000,
        code=compile instructions };
 
-runCodeTest :: [CodeByte] -> Either RunTimeError MemSlice -> Assertion
+runCodeTest :: [Assemble] -> Either RunTimeError MemSlice -> Assertion
 runCodeTest c v = assert $ (execute (simpleProgram c)) ==  v
 
-binOpTest ::  Instruction -> Word8 -> Word8 -> Word256 -> Test.Framework.Test
+unOpTest ::  Instruction -> Word256 -> Word256 -> Test.Framework.Test
+unOpTest op a v = testCase name $ runUnOpTest op a v
+        where name = show op ++ " " ++ show a
+
+runUnOpTest op a e = Right (toBytes e) @=? (execute unOpTestWrapper)
+        where unOpTestWrapper =
+                simpleProgram
+                [ P1 32         -- Arguments to RETURN
+                , P1 0
+
+                , P32 a         -- Argument to 'i'
+                , I op
+
+                , P1 0          -- Argument to MSTORE
+
+                , I MSTORE
+                , I RETURN
+                ]
+
+binOpTest ::  Instruction -> Word256 -> Word256 -> Word256 -> Test.Framework.Test
 binOpTest op a1 a2 v = testCase name $ runBinOpTest op a1 a2 v
         where name = show a1 ++ " " ++ show op ++ " " ++ show a2
 
-runBinOpTest ::  Instruction -> Word8 -> Word8 -> Word256 -> Assertion
-runBinOpTest op a1 a2 e = Right (toBytes e) @=? (execute (binOpTestWrapper op)) 
-        where binOpTestWrapper i =
+runBinOpTest ::  Instruction -> Word256 -> Word256 -> Word256 -> Assertion
+runBinOpTest op a1 a2 e = Right (toBytes e) @=? (execute binOpTestWrapper) 
+        where binOpTestWrapper =
                 simpleProgram
-                [ I PUSH1   -- Arguments to RETURN
-                , D 32
-                , I PUSH1
-                , D 0
+                [ P1 32         -- Arguments to RETURN
+                , P1 0
 
-                , I PUSH1   -- Arguments to 'i'
-                , D a2
-                , I PUSH1
-                , D a1
-                , I i
+                , P32 a2        -- Arguments to 'i'
+                , P32 a1
+                , I op
 
-                , I PUSH1   -- Arguments to MSTORE
-                , D 0
+                , P1 0          -- Argument to MSTORE
 
                 , I MSTORE
                 , I RETURN
@@ -80,7 +99,9 @@ tests = [
                 testCase "stop" $ runCodeTest [I STOP] (Right emptyMemSlice)
                 ],
         testGroup "Unary Operations" [
-                -- unOpTest NEG  -- Need to handle signed toBytes?
+                unOpTest NEG    5 (twosComp 5),
+                unOpTest NEG    0 0,
+                unOpTest NEG    (twosComp 256) 256
                 -- unOpTest NOT
                 ],
         testGroup "Binary Operations" [
@@ -104,6 +125,8 @@ tests = [
                 ]
         ]
 
+twosComp :: Word256 -> Word256
+twosComp = (1+).complement
 
 main ::  IO ()
 main = defaultMain tests
