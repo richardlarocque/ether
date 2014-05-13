@@ -54,7 +54,7 @@ basicMstore xs = xs ++ p1 0 ++ [ toOpcode MSTORE ]
 
 -- Returns the top element of the stack.
 basicReturn :: [Word8]  -> [Word8]
-basicReturn xs = p1 32 ++ p1 0 ++ (basicMstore xs) ++ [ toOpcode RETURN ]
+basicReturn xs = (basicMstore xs) ++ p1 32 ++ p1 0 ++ [ toOpcode RETURN ]
 
 ownAddr ::  Address
 ownAddr = A 0xAAAA
@@ -239,9 +239,12 @@ tests = [
                         123,
                 memTest (show MSTORE8)
                         (\memAddr -> binOp MSTORE8 (p1 memAddr) (p32 $ 0x100 + 132))
-                        132,
+                        (132 `shiftL` (256 - 8)),
                 -- FIXME SLOAD, SSTORE, JUMP, JUMPI, PC
-                returnTest "MSIZE 0" (op MSIZE) 0
+                returnTest "MSIZE 0" (op MSIZE) 0,
+                returnTest "MSIZE 32" ((binOp MSTORE8 (p1 32) (p1 10)) ++ (op MSIZE)) 2,
+                returnTest "MSIZE 1023" ((binOp MSTORE8 (p32 1023) (p1 10)) ++ (op MSIZE)) 32,
+                returnTest "MSIZE 1024" ((binOp MSTORE8 (p32 1024) (p1 10)) ++ (op MSIZE)) 33
                 ]
         ]
 

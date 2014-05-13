@@ -19,12 +19,15 @@ import Data.Byteable
 import Data.Bits
 import Crypto.Hash
 import Data.LargeWord
+import qualified Data.Vector as V
 import qualified Data.ByteString.Lazy as BL
 
 import Ethereum.EVM.InstructionSet as E
 import Ethereum.EVM.MachineState
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.SimpleTypes
+
+import Debug.Trace
 
 data SystemState = SystemState
 
@@ -83,7 +86,7 @@ execOp w ee = case w of
         AND     -> stackBinOp (.&.)
         OR      -> stackBinOp (.|.)
         XOR     -> stackBinOp (xor)
-        BYTE    -> stackBinOp (byteIndex)
+        BYTE    -> stackBinOp (\a b -> fromIntegral $ byteIndex a b)
 
         {- 20s: SHA3 -}
         SHA3    -> withTwoArgs $ \a len ms ->
@@ -124,13 +127,13 @@ execOp w ee = case w of
         SWAP            -> withTwoArgs (\a b -> (push b).(push a))
         MLOAD           -> withArg (\x ms' -> let (ms'', v) = mload x ms' in push v ms'')
         MSTORE          -> withTwoArgs mstore
-        MSTORE8         -> withTwoArgs (\a v -> mstore a (byteIndex 31 v))
+        MSTORE8         -> withTwoArgs (\a v -> mstorerange a (V.fromList [byteIndex 31 v]))
         SLOAD           -> error "not implemented"
         SSTORE          -> error "not implemented"
         JUMP            -> return
         JUMPI           -> return
         PC              -> noArgs (\ms' -> push ((fromIntegral.pc) ms') ms')
-        MSIZE           -> error "not implemented"
+        MSIZE           -> noArgs (\ms' -> push ((fromIntegral.memsize) ms') ms')
         GAS             -> noArgs (\ms' -> push ((fromIntegral.gas) ms') ms')
 
         {- 60s and 70s: Push Operations -}
@@ -180,7 +183,7 @@ safeDiv a b = a `div` b
 unbool2 ::  (Word256 -> Word256 -> Bool) -> Word256 -> Word256 -> Word256
 unbool2 f =  (\a b -> if (f a b) then 1 else 0)
 
-byteIndex ::  Integral b => Word256 -> Word256 -> b
+byteIndex ::  Word256 -> Word256 -> Word8
 byteIndex i w = if i < 32
                    then extractByte w i
                    else 0

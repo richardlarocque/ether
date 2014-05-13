@@ -14,6 +14,7 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 9
 module Ethereum.EVM.MachineState(
         MachineState,
         pc,
+        memsize,
         gas,
         setPC,
         incPC,
@@ -50,7 +51,7 @@ data MachineState = MS {
         gas :: Gas,
         pc :: Integer,
         memory :: ByteArray,
-        memsize :: Integer,
+        memsize :: Word256,
         stack :: Stack
 }
 
@@ -64,14 +65,14 @@ initialState ee = MS {
 }
 
 mstore :: Word256 -> Word256 -> MachineState -> MachineState
-mstore addr word = (setMem (fromIntegral $ addr) (toBytes word)) . (expandMem addr)
+mstore addr word = (setMem (fromIntegral $ addr) (toBytes word)) . (expandMem (addr+31))
 
 mstorerange :: Word256 -> ByteArray -> MachineState -> MachineState
 mstorerange addr bs = let addr' = fromIntegral $ addr
                       in (setMem addr' bs) . (expandMem (fromIntegral (addr' + blength bs)))
 
 mload :: Word256 -> MachineState -> (MachineState, Word256)
-mload addr ms = let ms' = expandMem addr ms
+mload addr ms = let ms' = expandMem (addr+31) ms
                 in (ms', fromBytes $ getMem (fromIntegral $ addr) 32 ms')
 
 mloadrange :: Word256 -> Word256 -> MachineState -> (MachineState, ByteArray)
@@ -117,7 +118,7 @@ getOp ee ms =
 memory' :: Lens MachineState Memory
 memory' = lens (memory) (\x ms -> ms {memory=x})
 
-memsize' :: Lens MachineState Integer
+memsize' :: Lens MachineState Word256
 memsize' = lens (memsize) (\x ms -> ms {memsize=x})
 
 stack' :: Lens MachineState Stack
@@ -126,21 +127,19 @@ stack' = lens (stack) (\x ms -> ms {stack=x})
 pc' :: Lens MachineState Integer
 pc' = lens (pc) (\x ms -> ms {pc=x})
 
--- TODO: I think this is not quite right in range case...
 expandMem :: Word256 -> MachineState -> MachineState
-expandMem addr =
-        let target = (fromIntegral addr + 32) `ceilDiv` 32
-        in (updateMemSize target) . (updateMemVector target)
-           where ceilDiv x d = (x + d - 1) `div` d
+expandMem target = (updateMemSize target) . (updateMemVector target)
 
-updateMemSize :: Int -> MachineState -> MachineState
-updateMemSize target = memsize' ^%= (max (fromIntegral target))
+updateMemSize :: Word256 -> MachineState -> MachineState
+updateMemSize target = memsize' ^%= (max (target `ceilDiv` 32))
+        where ceilDiv x d = (x + d - 1) `div` d
 
-updateMemVector :: Int -> MachineState -> MachineState
+updateMemVector :: Word256 -> MachineState -> MachineState
 updateMemVector target ms@MS{memory=origMem} =
         let origSize = blength origMem
-        in if (origSize < target)
-              then ms {memory= origMem V.++ (V.replicate origSize 0)}
+            expandSize = ((2^).ceiling.(logBase 2)) ((fromIntegral target) :: Double)
+        in traceShow (origSize, target, expandSize) $ if (origSize < expandSize)
+              then ms {memory= origMem V.++ (V.replicate (expandSize - origSize) 0)}
               else ms
 
 setMem :: Int -> ByteArray -> MachineState -> MachineState
