@@ -13,9 +13,12 @@ import Ethereum.EVM.InstructionSet as E
 import Ethereum.EVM.VM
 import Ethereum.SimpleTypes
 
-p32 :: Integral a => a -> [Word8]
+p32 :: Word256 -> [Word8]
 p32 x = let x' = (fromIntegral x) :: Word256
         in op PUSH32 ++ (V.toList.toBytes) x'
+
+p32i :: Integral a => a -> [Word8]
+p32i = p32.fromIntegral
 
 p1 :: Word8 -> [Word8]
 p1 x = op PUSH1 ++ [x]
@@ -37,10 +40,10 @@ triOp i a1 a2 a3 = a3 ++ a2 ++ a1 ++ (op i)
 memLiteral :: Word256 -> [Word8]  -> [Word8]
 memLiteral memOffset literal =
         let len = length literal
-            lenArg = p32 len
+            lenArg = p32i len
             codeAddrArg = binOp ADD (op PC) (p32 (72::Word256))
             memAddrArg = p32 memOffset
-            jmpAddrArg = binOp ADD (op PC) (p32 (len + 3))
+            jmpAddrArg = binOp ADD (op PC) (p32i (len + 3))
         in (triOp CODECOPY memAddrArg codeAddrArg lenArg)
            ++ (unOp JUMP jmpAddrArg)
            ++ literal
@@ -68,11 +71,14 @@ inputData = toBytes (1337 :: Word256)
 callValue :: Ether
 callValue = 5000000
 
+gasPriceValue :: Ether
+gasPriceValue = 10
+
 simpleProgram :: [Word8] -> ExecutionEnvironment
 simpleProgram is =
   EE { address=ownAddr,
        origin=originAddr,
-       gasPrice=5,
+       gasPrice=gasPriceValue,
        input=inputData,
        caller=callerAddr,
        value=callValue,
@@ -83,6 +89,11 @@ simpleExec = execute.simpleProgram
 
 runCodeTest :: [Word8] -> Either RunTimeError MemSlice -> Assertion
 runCodeTest c v = assert $ (execute (simpleProgram c)) ==  v
+
+returnTest :: String -> [Word8] -> Word256 -> Test.Framework.Test
+returnTest name codes v = testCase name (expect @=? result)
+        where expect = Right (toBytes v)
+              result = simpleExec $ basicReturn $ codes
 
 opTest :: Instruction -> Word256 -> Test.Framework.Test
 opTest o v = testCase name (expect @=? result)
@@ -109,7 +120,7 @@ sha3Test name val e = testCase name (expect @=? result)
               memAddr = 100
               memLen = length val
               putMem = memLiteral memAddr val
-              hashMem = binOp SHA3 (p32 memAddr) (p32 memLen)
+              hashMem = binOp SHA3 (p32 memAddr) (p32i memLen)
 
 memTest :: TestName -> (Word8 -> [Word8]) -> Word256 -> Test.Framework.Test
 memTest name putMemFunc e = testCase name (expect @=? result)
@@ -209,11 +220,28 @@ tests = [
                 unOpTest CALLDATALOAD 0 (fromBytes inputData),
                 opTest CALLDATASIZE ((fromIntegral.V.length) inputData),
                 memTest (show CALLDATACOPY)
-                        (\memAddr -> triOp CALLDATACOPY (p32 memAddr) (p1 0) (p1 32))
+                        (\memAddr -> triOp CALLDATACOPY (p32i memAddr) (p1 0) (p1 32))
                         (fromBytes inputData),
-                opTest CODESIZE 9
-                -- CODECOPY
-                -- opTest GASPRICE (f
+                opTest CODESIZE 9,  -- FIXME: brittle.
+                memTest (show CODECOPY)  -- FIXME: also brittle.
+                        (\memAddr -> triOp CODECOPY (p32i memAddr) (p1 0) (p1 1))
+                        (fromBytes $ V.fromList $ (toOpcode PUSH1) : (replicate 31 0)),
+                opTest GASPRICE (fromEther gasPriceValue)
+                ],
+        testGroup "stack" [
+                returnTest (show POP)  ((p32 400) ++ (p32 300) ++ (op POP)) 400,
+                returnTest (show SWAP) ((p32 400) ++ (p32 300) ++ (op SWAP) ++ (op POP)) 300,
+                returnTest (show MLOAD)
+                           (memLiteral 200 ((V.toList.toBytes) (1234)) ++ (unOp MLOAD (p32 200)))
+                           1234,
+                memTest (show MSTORE)
+                        (\memAddr -> binOp MSTORE (p1 memAddr) (p32 123))
+                        123,
+                memTest (show MSTORE8)
+                        (\memAddr -> binOp MSTORE8 (p1 memAddr) (p32 $ 0x100 + 132))
+                        132,
+                -- FIXME SLOAD, SSTORE, JUMP, JUMPI, PC
+                returnTest "MSIZE 0" (op MSIZE) 0
                 ]
         ]
 

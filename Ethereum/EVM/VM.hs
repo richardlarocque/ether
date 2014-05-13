@@ -119,10 +119,9 @@ execOp w ee = case w of
         GASLIMIT        -> error "not implemented"
 
         {- 50s: Stack, Memory, Storage and Flow Operations -}
-        -- FIXME: Very ugly...
         POP             -> ((liftM fst).pop)
         DUP             -> withArg (\x -> (push x).(push x))
-        SWAP            -> withTwoArgs (\a b -> (push a).(push b))
+        SWAP            -> withTwoArgs (\a b -> (push b).(push a))
         MLOAD           -> withArg (\x ms' -> let (ms'', v) = mload x ms' in push v ms'')
         MSTORE          -> withTwoArgs mstore
         MSTORE8         -> withTwoArgs (\a v -> mstore a (byteIndex 31 v))
