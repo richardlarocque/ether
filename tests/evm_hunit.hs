@@ -38,7 +38,7 @@ memLiteral :: Word256 -> [Word8]  -> [Word8]
 memLiteral memOffset literal =
         let len = length literal
             lenArg = p32 len
-            codeAddrArg = binOp ADD (op PC) (p32 72)
+            codeAddrArg = binOp ADD (op PC) (p32 (72::Word256))
             memAddrArg = p32 memOffset
             jmpAddrArg = binOp ADD (op PC) (p32 (len + 3))
         in (triOp CODECOPY memAddrArg codeAddrArg lenArg)
@@ -53,14 +53,29 @@ basicMstore xs = xs ++ p1 0 ++ [ toOpcode MSTORE ]
 basicReturn :: [Word8]  -> [Word8]
 basicReturn xs = p1 32 ++ p1 0 ++ (basicMstore xs) ++ [ toOpcode RETURN ]
 
+ownAddr ::  Address
+ownAddr = A 0xAAAA
+
+originAddr ::  Address
+originAddr = A 0x0011
+
+callerAddr ::  Address
+callerAddr = A 0xCCCC
+
+inputData :: MemSlice
+inputData = toBytes (1337 :: Word256)
+
+callValue :: Ether
+callValue = 5000000
+
 simpleProgram :: [Word8] -> ExecutionEnvironment
 simpleProgram is =
-  EE { address=Address,
-       origin=Address,
+  EE { address=ownAddr,
+       origin=originAddr,
        gasPrice=5,
-       input=emptyMemSlice,
-       caller=Address,
-       value=500000,
+       input=inputData,
+       caller=callerAddr,
+       value=callValue,
        code= V.fromList is };
 
 simpleExec ::  [Word8] -> Either RunTimeError MemSlice
@@ -69,17 +84,23 @@ simpleExec = execute.simpleProgram
 runCodeTest :: [Word8] -> Either RunTimeError MemSlice -> Assertion
 runCodeTest c v = assert $ (execute (simpleProgram c)) ==  v
 
-unOpTest ::  Instruction -> Word256 -> Word256 -> Test.Framework.Test
-unOpTest op a v = testCase name (expect @=? result)
-        where name = show op ++ " " ++ show a
+opTest :: Instruction -> Word256 -> Test.Framework.Test
+opTest o v = testCase name (expect @=? result)
+        where name = show o
               expect = Right (toBytes v)
-              result = simpleExec ( basicReturn $ unOp op (p32 a) )
+              result = simpleExec ( basicReturn $ op o )
+
+unOpTest ::  Instruction -> Word256 -> Word256 -> Test.Framework.Test
+unOpTest o a v = testCase name (expect @=? result)
+        where name = show o ++ " " ++ show a
+              expect = Right (toBytes v)
+              result = simpleExec ( basicReturn $ unOp o (p32 a) )
 
 binOpTest ::  Instruction -> Word256 -> Word256 -> Word256 -> Test.Framework.Test
-binOpTest op a1 a2 v = testCase name (expect @=? result)
-        where name = show a1 ++ " " ++ show op ++ " " ++ show a2
+binOpTest o a1 a2 v = testCase name (expect @=? result)
+        where name = show a1 ++ " " ++ show o ++ " " ++ show a2
               expect = Right (toBytes v)
-              result = simpleExec ( basicReturn $ binOp op (p32 a1) (p32 a2) )
+              result = simpleExec ( basicReturn $ binOp o (p32 a1) (p32 a2) )
 
 sha3Test ::   String -> [Word8] -> Word256 -> Test.Framework.Test
 sha3Test name val e = testCase name (expect @=? result)
@@ -88,7 +109,14 @@ sha3Test name val e = testCase name (expect @=? result)
               memAddr = 100
               memLen = length val
               putMem = memLiteral memAddr val
-              hashMem = binOp SHA3 (p32 memAddr) (p32 (length val))
+              hashMem = binOp SHA3 (p32 memAddr) (p32 memLen)
+
+memTest :: TestName -> (Word8 -> [Word8]) -> Word256 -> Test.Framework.Test
+memTest name putMemFunc e = testCase name (expect @=? result)
+        where expect = Right (toBytes e)
+              result = simpleExec $ putMem ++ binOp RETURN (p1 memAddr) (p1 32)
+              memAddr = 100
+              putMem = putMemFunc memAddr
 
 -- TODO: Infinite loop into out of gas.
 -- TODO: Genericize test cases.
@@ -100,7 +128,11 @@ tests = [
                 testCase "fromBytes 1" $ 1 @=? (fromBytes (V.fromList [1])),
                 testCase "fromBytes 256" $ 256 @=? (fromBytes (V.fromList [1, 0])),
                 testCase "toBytes 1" $ 1 @=? ((fromBytes.toBytes) 1),
-                testCase "toBytes 256" $ 256 @=? ((fromBytes.toBytes) 256)
+                testCase "toBytes 256" $ 256 @=? ((fromBytes.toBytes) 256),
+
+                testCase "safeBrange in"   $ (V.fromList [2,3]) @=? (safeBrange (1,2) (V.fromList [1,2,3])),
+                testCase "safeBrange out"  $ (V.fromList [0,0]) @=? (safeBrange (5,2) (V.fromList [1,2,3])),
+                testCase "safeBrange edge" $ (V.fromList [3,0]) @=? (safeBrange (2,2) (V.fromList [1,2,3]))
                 ],
 
         testGroup "Halts and Exceptions" [ 
@@ -167,6 +199,21 @@ tests = [
         testGroup "sha3" [
                 -- According to Wikipedia, this is the hash for Kekkak-256.
                 sha3Test "()" [] 89477152217924674838424037953991966239322087453347756267410168184682657981552
+                ],
+        testGroup "environment" [
+                opTest ADDRESS (fromAddress ownAddr),
+                -- opTest BALANCE -- FIXME
+                opTest ORIGIN (fromAddress originAddr),
+                opTest CALLER (fromAddress callerAddr),
+                opTest CALLVALUE (fromInteger callValue),
+                unOpTest CALLDATALOAD 0 (fromBytes inputData),
+                opTest CALLDATASIZE ((fromIntegral.V.length) inputData),
+                memTest (show CALLDATACOPY)
+                        (\memAddr -> triOp CALLDATACOPY (p32 memAddr) (p1 0) (p1 32))
+                        (fromBytes inputData),
+                opTest CODESIZE 9
+                -- CODECOPY
+                -- opTest GASPRICE (f
                 ]
         ]
 

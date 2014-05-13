@@ -20,7 +20,9 @@ module Ethereum.SimpleTypes (
         fromAddress,
         fromEther,
         brange,
+        safeBrange,
         bbyte,
+        safeBbyte,
         blength,
         fromBytes,
         toBytes,
@@ -29,6 +31,7 @@ module Ethereum.SimpleTypes (
 ) where
 
 import Data.Binary
+import Data.Maybe
 import Data.LargeWord
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -37,7 +40,7 @@ import qualified Data.Vector as V
 type Gas = Integer
 type MemSlice = V.Vector Word8
 type Stack = [Word256]
-data Address = Address
+data Address = A Word160
 type Ether = Integer
 type ByteArray = V.Vector Word8
 
@@ -47,18 +50,29 @@ data RunTimeError = OutOfGas
                   deriving (Show,Eq)
 
 -- Addresses are 160 bits
-fromAddress :: Address -> Word256
-fromAddress _ = 0  -- FIXME
+fromAddress :: Integral a => Address -> a
+fromAddress (A w) = fromIntegral w
 
-fromEther :: Ether -> Word256
-fromEther _ = 0  -- FIXME
+fromEther :: Integral a => Ether -> a
+fromEther = fromIntegral
 
--- FIXME: brange and bbyte need to support out of range
-brange :: Integral a => (a, a) -> ByteArray -> ByteArray
-brange (start, len) = V.slice (fromIntegral start) (fromIntegral len)
+brange :: (Int, Int) -> ByteArray -> ByteArray
+brange (start, len) = V.slice start len
 
-bbyte :: Integral a => a -> ByteArray -> Word8
-bbyte i bs = bs V.! (fromIntegral i)
+safeBrange :: (Int, Int) -> ByteArray -> ByteArray
+safeBrange (start, len) bs = let bufEnd = blength bs
+                                 overread = (start+len) - max start bufEnd
+                                 suffix = V.replicate overread 0
+                                 prefix = if start >= bufEnd
+                                             then V.empty
+                                             else brange (start, min len (bufEnd-start)) bs
+                             in prefix V.++ suffix
+
+bbyte :: Int -> ByteArray -> Word8
+bbyte i bs = bs V.! i
+
+safeBbyte :: Int -> ByteArray -> Word8
+safeBbyte i bs = fromMaybe 0 $ bs V.!? i
 
 blength :: ByteArray -> Int
 blength = V.length

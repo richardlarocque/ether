@@ -109,7 +109,7 @@ addPC n = pc' ^+= (fromIntegral n)
 getOp :: ExecutionEnvironment -> MachineState -> Maybe Instruction
 getOp ee ms =
         if pc ms < (fromIntegral $ clength ee)
-           then fromOpcode $ cbyte (pc ms) ee
+           then fromOpcode $ cbyte (fromIntegral $ pc ms) ee
            else Just STOP
 
 -- Internal functions.

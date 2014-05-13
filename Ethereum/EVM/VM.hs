@@ -19,7 +19,6 @@ import Data.Byteable
 import Data.Bits
 import Crypto.Hash
 import Data.LargeWord
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 
 import Ethereum.EVM.InstructionSet as E
