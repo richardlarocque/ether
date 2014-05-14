@@ -240,12 +240,18 @@ tests = [
                 memTest (show MSTORE8)
                         (\memAddr -> binOp MSTORE8 (p1 memAddr) (p32 $ 0x100 + 132))
                         (132 `shiftL` (256 - 8)),
-                -- FIXME SLOAD, SSTORE, JUMP, JUMPI, PC
+                -- FIXME SLOAD, SSTORE
+                returnTest "JUMP" ((unOp JUMP (p1 4)) ++ (op STOP) ++ (p1 10)) 10,
+                returnTest "JUMPI 0" ((binOp JUMPI (p1 6) (p1 0)) ++ (op STOP) ++ (p1 10)) 10,
+                returnTest "JUMPI 1" ((binOp JUMPI (p32 0xDEAD) (p1 1)) ++ (p1 10)) 10,
+                returnTest "PC" ((unOp JUMP (p1 4)) ++ (op STOP) ++ (op PC)) 4,
                 returnTest "MSIZE 0" (op MSIZE) 0,
                 returnTest "MSIZE 32" ((binOp MSTORE8 (p1 32) (p1 10)) ++ (op MSIZE)) 2,
                 returnTest "MSIZE 1023" ((binOp MSTORE8 (p32 1023) (p1 10)) ++ (op MSIZE)) 32,
                 returnTest "MSIZE 1024" ((binOp MSTORE8 (p32 1024) (p1 10)) ++ (op MSIZE)) 33
                 ]
+        -- PUSH is implicitly tested quite well already.
+        -- TODO: system operations
         ]
 
 twosComp :: Word256 -> Word256
