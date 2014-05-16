@@ -27,8 +27,6 @@ import Ethereum.EVM.MachineState
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.SimpleTypes
 
-import Debug.Trace
-
 data SystemState = SystemState
 
 execute :: ExecutionEnvironment -> Either RunTimeError MemSlice

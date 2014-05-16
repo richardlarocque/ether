@@ -1,4 +1,4 @@
-module Main where
+module Tests.HUnit.RLP(tests) where
 
 import Data.Binary
 import Data.Binary.Get
@@ -76,6 +76,3 @@ tests = [
                 failToRead (get :: Get Seq1) [193,1]    -- Sub-parse failure.
         ]
         ]
-
-main ::  IO ()
-main = defaultMain tests

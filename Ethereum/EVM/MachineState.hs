@@ -37,9 +37,6 @@ module Ethereum.EVM.MachineState(
 import Data.LargeWord
 import Data.Lens.Common
 import Data.Vector as V
-
-import Debug.Trace
-
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.InstructionSet
 import Ethereum.SimpleTypes
@@ -137,8 +134,8 @@ updateMemSize target = memsize' ^%= (max (target `ceilDiv` 32))
 updateMemVector :: Word256 -> MachineState -> MachineState
 updateMemVector target ms@MS{memory=origMem} =
         let origSize = blength origMem
-            expandSize = ((2^).ceiling.(logBase 2)) ((fromIntegral target) :: Double)
-        in traceShow (origSize, target, expandSize) $ if (origSize < expandSize)
+            expandSize = (((2^) :: Int -> Int).ceiling.(logBase 2)) ((fromIntegral target) :: Double)
+        in if (origSize < expandSize)
               then ms {memory= origMem V.++ (V.replicate (expandSize - origSize) 0)}
               else ms
 

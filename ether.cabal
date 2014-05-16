@@ -10,8 +10,6 @@ copyright:           Copyright (c) 2014 Richard Larocque
 category:            Cryptocurrency
 build-type:          Simple
 cabal-version:       >=1.10
-extra-source-files:
-    tests/*.hs
 
 Library
   build-depends:       base >=4.7 && <4.8,
@@ -39,62 +37,27 @@ Library
   
   default-language:    Haskell2010
 
-Test-suite evm
-  hs-source-dirs:      tests
-  main-is:             evm_hunit.hs
+Test-suite ether_tests
+  main-is:             Tests/test_main.hs
   type:                exitcode-stdio-1.0
 
   build-depends:       base >=4.7 && <4.8,
-                       largeword >=1.2 && <1.3,
-                       containers >=0.5 && <0.6,
-                       vector >= 0.10 && < 0.11,
-                       cryptohash >= 0.11 && < 0.12,
+                       binary >= 0.7 && < 0.8,
                        byteable >= 0.1 && < 0.2,
                        bytestring >= 0.10 && < 0.11,
-                       binary >= 0.7 && < 0.8,
-                       data-lens >= 2.10 && < 2.11
-
-  ghc-options:         -O2 -Wall
-
-  build-depends:
-      ether,
-      HUnit,
-      test-framework,
-      test-framework-hunit
-
-  default-language:    Haskell2010
-
-Test-suite rlp
-  hs-source-dirs:      tests
-  main-is:             rlp_hunit.hs
-  type:                exitcode-stdio-1.0
-
-  build-depends:       base >=4.7 && <4.8,
-                       binary >= 0.7 && < 0.8,
-                       bytestring >= 0.10 && < 0.11,
-                       largeword >=1.2 && <1.3
-
-  ghc-options:         -O2 -Wall
-
-  build-depends:
-      ether,
-      HUnit,
-      test-framework,
-      test-framework-hunit
-
-  default-language:    Haskell2010
-
-Test-suite hexprefix
-  hs-source-dirs:      tests
-  main-is:             hexprefix_hunit.hs
-  type:                exitcode-stdio-1.0
-
-  build-depends:       base >=4.7 && <4.8,
-                       binary >= 0.7 && < 0.8,
-                       bytestring >= 0.10 && < 0.11,
+                       containers >=0.5 && <0.6,
+                       cryptohash >= 0.11 && < 0.12,
+                       data-lens >= 2.10 && < 2.11,
+                       largeword >=1.2 && <1.3,
+                       vector >= 0.10 && < 0.11,
                        OddWord >= 1.0 && < 1.1
 
   ghc-options:         -O2 -Wall
+
+  other-modules:
+      Tests.HUnit.RLP,
+      Tests.HUnit.EVM,
+      Tests.HUnit.HexPrefix
 
   build-depends:
       ether,

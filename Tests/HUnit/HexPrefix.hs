@@ -1,6 +1,4 @@
-module Main where
-
-import Data.Word.Odd
+module Tests.HUnit.HexPrefix(tests) where
 
 import Test.Framework
 import Test.Framework.Providers.HUnit
@@ -31,6 +29,3 @@ tests = [
                 roundTripTest $ HPArray [15] False
         ]
         ]
-
-main ::  IO ()
-main = defaultMain tests

@@ -1,4 +1,4 @@
-module Main where
+module Tests.HUnit.EVM(tests) where
 
 import qualified Data.Vector as V
 import Data.Word
@@ -256,6 +256,3 @@ tests = [
 
 twosComp :: Word256 -> Word256
 twosComp = (1+).complement
-
-main ::  IO ()
-main = defaultMain tests
