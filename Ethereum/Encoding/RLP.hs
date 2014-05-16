@@ -1,5 +1,5 @@
 {- |
-Module      :  Ethereum.RLP.RLP
+Module      :  Ethereum.Encoding.RLP
 Description :  Implementation of the Ethereum RLP encoding
 Copyright   :  (c) Richard Larocque
 License     :  GPL-3.0+
