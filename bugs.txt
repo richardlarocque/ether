@@ -1,0 +1,3 @@
+-- Not clear that memory, input data, etc. is *byte* addressable.
+-- Which SHA3?  My library is Kekkak..
+-- CALLDATACOPY, CODECOPY: surely it was supposed to be three *input* arguments?
