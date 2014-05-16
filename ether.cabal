@@ -31,7 +31,9 @@ Library
       Ethereum.EVM.InstructionSet
       Ethereum.EVM.MachineState
       Ethereum.EVM.VM
+      Ethereum.Encoding.RLP
       Ethereum.SimpleTypes
+
   
   default-language:    Haskell2010
 
@@ -49,6 +51,26 @@ Test-suite evm
                        bytestring >= 0.10 && < 0.11,
                        binary >= 0.7 && < 0.8,
                        data-lens >= 2.10 && < 2.11
+
+  ghc-options:         -O2 -Wall
+
+  build-depends:
+      ether,
+      HUnit,
+      test-framework,
+      test-framework-hunit
+
+  default-language:    Haskell2010
+
+Test-suite rlp
+  hs-source-dirs:      tests
+  main-is:             rlp_hunit.hs
+  type:                exitcode-stdio-1.0
+
+  build-depends:       base >=4.7 && <4.8,
+                       binary >= 0.7 && < 0.8,
+                       bytestring >= 0.10 && < 0.11,
+                       largeword >=1.2 && <1.3
 
   ghc-options:         -O2 -Wall
 
