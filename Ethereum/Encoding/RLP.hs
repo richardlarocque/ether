@@ -18,78 +18,93 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.List
+import Data.LargeWord
 import qualified Data.ByteString.Lazy as L
 
-putArray ::  [Word8] -> Put
-putArray [b] | b < 128           = putWord8 b
-putArray bs  | length bs < 56    =
-        do putWord8 (fromIntegral $ 128 + length bs)
-           mapM_ putWord8 bs
-putArray bs                      =
-        do putWord8 (fromIntegral $ 183 + (length (asBE $ length bs)))
-           mapM_ putWord8 (asBE $ length bs)
-           mapM_ putWord8 bs
+putArray ::  L.ByteString -> Put
+putArray bs = case bs of
+        _ | L.length bs == 1 && L.head bs < 128 -> putWord8 (L.head bs)
+        _ | L.length bs < 56 ->
+                do putWord8 (fromIntegral $ 128 + L.length bs)
+                   putLazyByteString bs
+        _ ->
+                do putWord8 (fromIntegral $ 183 + (L.length (asBE $ L.length bs)))
+                   putLazyByteString (asBE $ L.length bs)
+                   putLazyByteString bs
 
-getArray ::  Get [Word8]
-getArray = do b <- get :: Get Word8
-              case b of
-                      v  | v < 128   -> return [v]
-                      l  | l <= 183  -> getWord8s (l - 128)
-                      ll             ->
-                              do ls <- getWord8s (ll - 183)
-                                 len <- unBE ls
-                                 getWord8s len
+getArrayHeader ::  Get Integer
+getArrayHeader = do
+        b <- lookAhead $ getWord8
+        case b of
+                _  | b < 128   -> return 1
+                _  | b <= 183  -> do
+                        skip 1
+                        return $ (fromIntegral b) - 128
+                _             -> do
+                        skip 1
+                        ls <- getLazyByteString ((fromIntegral b) - 183)
+                        len <- unBE ls
+                        return len
+
+getArray ::  Get L.ByteString
+getArray = do len <- getArrayHeader
+              getLazyByteString (fromIntegral len)
 
 putScalar ::  Integer -> Put
 putScalar = (putArray . asBE)
 
-putScalarI :: Integral a => a -> Put
-putScalarI = putScalar.fromIntegral
+putScalar256 :: Word256 -> Put
+putScalar256 = putScalar . fromIntegral
 
 getScalar ::  Get Integer
 getScalar = do getArray >>= unBE
 
+getScalar256 ::  Get Word256
+getScalar256 = (liftM fromIntegral) getScalar
+
+putSequenceHeader :: Integral a => a -> Put
+putSequenceHeader len =
+        do if len < 56
+              then putWord8 (fromIntegral $ 192 + len)
+              else do putWord8 (fromIntegral $ 247 + (L.length (asBE $ len)))
+                      putLazyByteString (asBE $ len)
+
+putSequenceBytes :: L.ByteString -> Put
+putSequenceBytes lb =
+        do putSequenceHeader (L.length lb)
+           putLazyByteString lb
+
 putSequence ::  Put -> Put
-putSequence p1 =
-        let encodings = runPut p1
-            len = L.length encodings
-        in do if len < 56
-                 then do putWord8 (fromIntegral $ 192 + len)
-                         putLazyByteString encodings
-                 else do putWord8 (fromIntegral $ 247 + (length (asBE $ len)))
-                         mapM_ putWord8 (asBE $ len)
-                         putLazyByteString encodings
+putSequence p1 = putSequenceBytes (runPut p1)
 
 getSequence :: Get a -> Get a
 getSequence g1 =
-        do bs <- getSequence'
-           case runGetOrFail g1 bs of
-                   (Left (_,_,msg))       -> fail msg
-                   (Right (_,_,a))        -> return a
+        do l <- getSequenceHeader
+           isolate l g1
 
-getSequence' ::  Get L.ByteString
-getSequence' = liftM L.pack $
+getSequenceHeader ::  Get Int
+getSequenceHeader =
         do b <- get :: Get Word8
            if b <= 247
-              then getWord8s (b - 192)
-              else do ls <- getWord8s (b - 247)
+              then return $ (fromIntegral b) - 192
+              else do ls <- getLazyByteString ((fromIntegral b) - 247)
                       len <- unBE ls
-                      getWord8s len
+                      return $ fromIntegral len
 
+getSequenceBytes :: Get L.ByteString
+getSequenceBytes = getSequence getRemainingLazyByteString
 
 getWord8s :: Integral a => a -> Get [Word8]
 getWord8s x = replicateM (fromIntegral x) get
 
-asBE :: Integral a => a -> [Word8]
-asBE = reverse . (unfoldr (\v ->
+asBE :: Integral a => a -> L.ByteString
+asBE = L.pack . reverse . (unfoldr (\v ->
         if v == 0
            then Nothing
            else Just (fromIntegral $ v `mod` 256, v `div` 256)))
 
-unBE :: Monad m => [Word8] -> m Integer
-unBE bs = case bs of 
-        0:_ -> fail "Unexpected leading zero(es)"
-        x -> return $ unBE' x
-
-unBE' :: [Word8] -> Integer
-unBE' = foldl' (\x y -> x * 256 + (fromIntegral y)) 0
+unBE :: Monad m => L.ByteString -> m Integer
+unBE bs = case bs of
+        _ | L.length bs == 0 -> return 0
+        _ | L.head bs == 0 -> fail "Unexpected leading zero(es)"
+        _ -> return $ L.foldl' (\x y -> x * 256 + (fromIntegral y)) 0 bs

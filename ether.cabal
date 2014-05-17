@@ -13,6 +13,7 @@ cabal-version:       >=1.10
 
 Library
   build-depends:       base >=4.7 && <4.8,
+                       array >= 0.5 && < 0.6,
                        largeword >=1.2 && <1.3,
                        containers >=0.5 && <0.6,
                        vector >= 0.10 && < 0.11,
@@ -32,6 +33,7 @@ Library
       Ethereum.EVM.VM
       Ethereum.Encoding.RLP
       Ethereum.Encoding.HexPrefix
+      Ethereum.MMPTree.MMPTree
       Ethereum.SimpleTypes
 
   
@@ -42,6 +44,7 @@ Test-suite ether_tests
   type:                exitcode-stdio-1.0
 
   build-depends:       base >=4.7 && <4.8,
+                       array >= 0.5 && < 0.6,
                        binary >= 0.7 && < 0.8,
                        byteable >= 0.1 && < 0.2,
                        bytestring >= 0.10 && < 0.11,
@@ -57,7 +60,8 @@ Test-suite ether_tests
   other-modules:
       Tests.HUnit.RLP,
       Tests.HUnit.EVM,
-      Tests.HUnit.HexPrefix
+      Tests.HUnit.HexPrefix,
+      Tests.HUnit.MMPTree
 
   build-depends:
       ether,

@@ -15,7 +15,7 @@ roundTripTest :: (Show a, Eq a) => (a -> L.ByteString) -> (L.ByteString -> a) ->
 roundTripTest e d x = testCase (show x) $ x @=? (d.e) x
 
 roundTripTestArray :: [Word8] -> Test.Framework.Test
-roundTripTestArray = roundTripTest (\x -> runPut $ putArray x) (runGet $ getArray)
+roundTripTestArray = roundTripTest (\x -> runPut $ putArray (L.pack x)) (L.unpack.(runGet $ getArray))
 
 roundTripTestScalar :: Integer -> Test.Framework.Test
 roundTripTestScalar = roundTripTest (\x -> runPut $ putScalar x) (runGet $ getScalar)
@@ -31,16 +31,16 @@ data Seq1 = Seq1 Word256 Word256 [Word8] Word256
 
 instance Binary Seq1 where
         put (Seq1 s1 s2 b3 s4) = putSequence $ do 
-                putScalarI s1
-                putScalarI s2
-                putArray b3
-                putScalarI s4
+                putScalar256 s1
+                putScalar256 s2
+                putArray (L.pack b3)
+                putScalar256 s4
         get = getSequence $ do
                 s1 <- getScalar
                 s2 <- getScalar
                 b3 <- getArray
                 s4 <- getScalar
-                return $ Seq1 (fromIntegral s1) (fromIntegral s2) b3 (fromIntegral s4)
+                return $ Seq1 (fromIntegral s1) (fromIntegral s2) (L.unpack b3) (fromIntegral s4)
 
 -- TODO: These should be augmented with quickcheck tests.
 tests :: [Test.Framework.Test]

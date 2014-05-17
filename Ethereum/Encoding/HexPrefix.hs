@@ -14,41 +14,58 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Appendix D
 module Ethereum.Encoding.HexPrefix where
 
 import Data.Bits
-import Data.Word
+import Data.Binary
+import Data.Binary.Get
 import Data.Word.Odd
 import qualified Data.ByteString.Lazy as L
 
 data HPArray = HPArray [Word4] Bool
         deriving (Show,Eq)
 
-encodeHexPrefix ::  HPArray -> L.ByteString
-encodeHexPrefix (HPArray ns b) = L.pack $
-        case even $ length ns of
-                True  -> ((16 * ft)       + (0)                     ) : pairAsBytes ns
-                False -> ((16 * (ft + 1)) + ((fromIntegral.head) ns)) : pairAsBytes (tail ns)
-        where ft = if b then 2 else 0
-              pairAsBytes :: [Word4] -> [Word8]
-              pairAsBytes (n1:n2:rest)  =
-                      let n1' = fromIntegral n1 :: Word8
-                          n2' = fromIntegral n2 :: Word8
-                      in ((n1' * 16) + n2') : (pairAsBytes rest)
-              pairAsBytes [_]           = error "Expected even size list"
-              pairAsBytes []            = []
+putHexPrefixBytes :: [Word4] -> Bool -> Put
+putHexPrefixBytes ns b = do
+        let ft = if b then 2 else 0 :: Word8
+        let (b0, rest) = case (even.length) ns of 
+                True  -> (((16 * ft)       + (0)                     ),       ns )
+                False -> (((16 * (ft + 1)) + ((fromIntegral.head) ns)), (tail ns))
+        put b0
+        mapM_ putWord8 (pairBytes rest)
+        where pairBytes :: [Word4] -> [Word8]
+              pairBytes (n1:n2:rest) = (makeByte n1 n2) : pairBytes rest
+              pairBytes [] = []
+              pairBytes [_] = error "Unexpected unpair input"
+              makeByte h l = toHigh h + toLow l
 
-decodeHexPrefix :: L.ByteString -> HPArray
-decodeHexPrefix = decodeHexPrefix'.L.unpack 
+getHexPrefixBytes :: Bool -> Get [Word4]
+getHexPrefixBytes ef = do
+        (HPArray ns af) <- getHexPrefix'
+        if af == ef
+           then return ns
+           else fail "Flag did not match"
 
-decodeHexPrefix' :: [Word8] -> HPArray
-decodeHexPrefix' (b:bs) =
+getHexPrefix' :: Get HPArray
+getHexPrefix' = do
+        b <- getWord8
         let ft = b `testBit` 5
-            isEven = not $ b `testBit` 4
-            nibbles = case isEven of
-                True  -> unpairBytes bs
-                False -> (fromIntegral $ 0x0f .&. b) : unpairBytes bs
-            unpairBytes (x:xs) = (fromIntegral $ x `shiftR` 4) :
-                                     (fromIntegral $ x .&. 0x0f) :
-                                     unpairBytes xs
-            unpairBytes []    = []
-        in HPArray nibbles ft
-decodeHexPrefix' []     = error "Require at least one byte of input."
+        let isEven = not $ b `testBit` 4
+        let prefix = if (isEven)
+                        then []
+                        else [lowNibble b]
+        bs <- getRemainingLazyByteString
+        return $ HPArray (prefix ++ (nibbleize (L.unpack bs))) ft
 
+lowNibble  :: Word8 -> Word4
+lowNibble x   = (fromIntegral $ 0x0f .&. x)
+
+highNibble :: Word8 -> Word4
+highNibble x  = (fromIntegral $ x `shiftR` 4)
+
+toHigh :: Word4 -> Word8
+toHigh = (16*).fromIntegral
+
+toLow :: Word4 -> Word8
+toLow = fromIntegral
+
+nibbleize :: [Word8] -> [Word4]
+nibbleize bs = map fromIntegral $ concatMap toNibbles bs
+        where toNibbles b = [highNibble b, lowNibble b]

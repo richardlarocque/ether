@@ -15,31 +15,98 @@ Translation of Ethereum Yellow Paper, Proof-of-Concept V, Appendix D
 
 module Ethereum.MMPTree.MMPTree where
 
+import Control.Applicative
+import Control.Monad
 import Data.Array
 import Data.Bits
+import Data.Binary
+import Data.Binary.Get
+import Data.Binary.Put
 import Data.LargeWord
 import Data.Maybe
-import Data.Word
 import Data.Word.Odd
 import qualified Data.List as DL
 import qualified Data.Map as DM
+import qualified Data.ByteString.Lazy as L
+import Ethereum.Encoding.HexPrefix
+import Ethereum.Encoding.RLP
 
-data Tree = Empty
-          | Leaf [Word4] Item
+data Tree = Leaf [Word4] Item
           | Extension [Word4] TreeRef
           | Branch (Array Word4 TreeRef) (Maybe Item)
+          deriving (Show, Eq)
 
-data Item = Embedded [Word8]
-          | HashRef Word256
+data Item = Embedded L.ByteString
+        deriving (Show, Eq)
 
-data TreeRef = TreeHash Word256
-             | Serialized [Word8]
+data TreeRef = Serialized L.ByteString
+             | TreeHash Word256 
+             deriving (Show, Eq)
 
-type Storage = DM.Map Word256 [Word8]
+type Storage = DM.Map Word256 L.ByteString
 
 instance Ix Word4 where
         range (a,b) = [a..b]
-        inRange (l,u) i = l <= i && i < u
+        index (a,b) i = fromIntegral $ i - a
+        inRange (l,u) i = l <= i && i <= u
+
+----
+
+instance Binary TreeRef where
+        put (Serialized bs) = putSequenceBytes bs
+        put (TreeHash h) = putScalar256 h
+
+        get = getHash <|> getSerialized
+                where getHash = getScalar256 >>= return.TreeHash
+                      getSerialized = getSequenceBytes >>= return.Serialized
+
+instance Binary Item where
+        put (Embedded e) = putArray e
+        get = getArray >>= return.Embedded
+
+instance Binary Tree where
+        put (Leaf ns i) = putSequence $ do
+                putHexPrefix ns True
+                put i
+        put (Extension ns tr) = putSequence $ do
+                putHexPrefix ns False
+                put tr
+        put (Branch ts mi) = putSequence $ do
+                mapM_ put $ elems ts
+                case mi of
+                        Just i -> put i
+                        Nothing -> return ()
+
+        get = getSequence (getLeaf <|> getExtension <|> getBranch)
+
+getLeaf :: Get Tree
+getLeaf = do ns <- getHexPrefix True
+             i <- get
+             return $ Leaf ns i
+
+getExtension :: Get Tree
+getExtension = do ns <- getHexPrefix False
+                  tr <- get
+                  return $ Extension ns tr
+
+getBranch :: Get Tree
+getBranch = do
+        trs <- replicateM 16 (get :: Get TreeRef)
+        done <- isEmpty
+        mi <- if not done
+           then (get :: Get Item) >>= return.Just
+           else return Nothing
+        return $ Branch (listArray (0,15) trs) mi
+
+putHexPrefix :: [Word4] -> Bool -> Put
+putHexPrefix ns f =
+        let bs = runPut (putHexPrefixBytes ns f)
+        in putArray bs
+
+getHexPrefix :: Bool -> Get [Word4]
+getHexPrefix f = do
+        len <- getArrayHeader
+        isolate (fromIntegral len) (getHexPrefixBytes f)
 
 nibbleize :: [Word8] -> [Word4]
 nibbleize bs = map fromIntegral $ concatMap toNibbles bs
@@ -48,23 +115,21 @@ nibbleize bs = map fromIntegral $ concatMap toNibbles bs
 fromTreeRef :: Storage -> TreeRef -> Tree
 fromTreeRef s tr =
         decodeTree $ case tr of
-                (TreeHash h) -> fromMaybe (error "lookup failed") (DM.lookup h s)
-                Serialized s -> s
+                TreeHash h -> fromMaybe (error "lookup failed") (DM.lookup h s)
+                Serialized bs -> bs
 
-decodeTree :: [Word8] -> Tree
-decodeTree _ = Leaf [0] (Embedded [1,2,3])
+decodeTree :: L.ByteString -> Tree
+decodeTree bs = runGet get bs
 
 path :: Storage -> Tree -> [Word4] -> Maybe [Tree]
 path s tree ns = case tree of
-        Empty -> Nothing
-
-        Leaf ps i | ns == ps -> Just []
+        Leaf ps _ | ns == ps -> Just []
         Leaf _ _             -> Nothing
 
         Extension ps t -> do rest <- ns `DL.stripPrefix` ps
                              path' rest t
 
-        Branch _ i  | null ns -> Just []
+        Branch _ _  | null ns -> Just []
         Branch ts _           -> path' (tail ns) $ ts ! (head ns)
         where path' k tr = do next <- (path s (fromTreeRef s tr) k)
                               return $ tree:next
