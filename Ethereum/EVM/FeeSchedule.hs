@@ -8,7 +8,7 @@ Maintainer  :  richard.larocque@gmail.com
 Stability   :  unstable
 Portability :  non-portable (Unknown portability)
 
-Translation of Ethereum Yellow Paper, Proof-of-Concept V, Appendix B
+Translation of Ethereum Yellow Paper, Proof-of-Concept V, Section 9.3
 -}
 
 module Ethereum.EVM.FeeSchedule where
