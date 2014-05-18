@@ -31,7 +31,8 @@ import qualified Data.ByteString.Lazy as L
 import Ethereum.Encoding.HexPrefix
 import Ethereum.Encoding.RLP
 
-data Tree = Leaf [Word4] Item
+data Tree = Empty
+          | Leaf [Word4] Item
           | Extension [Word4] TreeRef
           | Branch (Array Word4 TreeRef) (Maybe Item)
           deriving (Show, Eq)
@@ -79,6 +80,9 @@ instance Binary Tree where
 
         get = getSequence (getLeaf <|> getExtension <|> getBranch)
 
+zeroRef :: TreeRef
+zeroRef = TreeHash 0
+
 getLeaf :: Get Tree
 getLeaf = do ns <- getHexPrefix True
              i <- get
@@ -114,23 +118,30 @@ nibbleize bs = map fromIntegral $ concatMap toNibbles bs
 
 fromTreeRef :: Storage -> TreeRef -> Tree
 fromTreeRef s tr =
-        decodeTree $ case tr of
-                TreeHash h -> fromMaybe (error "lookup failed") (DM.lookup h s)
-                Serialized bs -> bs
+        case tr of
+                TreeHash 0 -> Empty
+                TreeHash h -> decodeTree $ fromMaybe (error "lookup failed") (DM.lookup h s)
+                Serialized bs -> decodeTree $ bs
 
 decodeTree :: L.ByteString -> Tree
 decodeTree bs = runGet get bs
 
-path :: Storage -> Tree -> [Word4] -> Maybe [Tree]
-path s tree ns = case tree of
-        Leaf ps _ | ns == ps -> Just []
-        Leaf _ _             -> Nothing
+path :: Storage -> Tree -> [Word4] -> ([Tree], Maybe Item)
+path s t k = path' [] (fromTreeRef s) t k
 
-        Extension ps t -> do rest <- ns `DL.stripPrefix` ps
-                             path' rest t
+path' :: [Tree] -> (TreeRef -> Tree) -> Tree -> [Word4] -> ([Tree], Maybe Item)
+path' acc tlookup tree ns = case tree of
+        Leaf ps i | ns == ps           -> endHere $ Just i
+        Leaf ps i | head ns == head ps -> endHere $ Nothing
 
-        Branch _ _  | null ns -> Just []
-        Branch ts _           -> path' (tail ns) $ ts ! (head ns)
-        where path' k tr = do next <- (path s (fromTreeRef s tr) k)
-                              return $ tree:next
+        Extension ps t ->
+                case ps `DL.stripPrefix` ns of
+                        (Just rest) -> recurse rest t
+                        Nothing     -> endHere $ Nothing
+
+        Branch _  mi | null ns  -> endHere mi
+        Branch ts _             -> recurse (tail ns) (ts ! head ns)
+
+        where recurse k tr = path' (tree:acc) tlookup (tlookup tr) k
+              endHere mi = (tree:acc, mi)
 
