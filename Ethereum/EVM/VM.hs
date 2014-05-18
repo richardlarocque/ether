@@ -15,9 +15,7 @@ module Ethereum.EVM.VM where
 
 import Control.Monad
 import Data.Binary
-import Data.Byteable
 import Data.Bits
-import Crypto.Hash
 import Data.LargeWord
 import qualified Data.Vector as V
 import qualified Data.ByteString.Lazy as BL
@@ -26,6 +24,7 @@ import Ethereum.EVM.InstructionSet as E
 import Ethereum.EVM.MachineState
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.SimpleTypes
+import Ethereum.Common
 
 data SystemState = SystemState
 
@@ -89,9 +88,8 @@ execOp w ee = case w of
         {- 20s: SHA3 -}
         SHA3    -> withTwoArgs $ \a len ms ->
                 let (ms', bytes) = mloadrange a len ms
-                    hashed = (hash $ memToByteString bytes) :: Digest SHA3_256
-                    asWord256 = (decode . BL.fromStrict . Data.Byteable.toBytes) hashed :: Word256
-                in push asWord256 ms'
+                    hashed = hashBytes $ memToByteString bytes
+                in push hashed ms'
 
         {- 30s: Environment -}
         ADDRESS         -> noArgs ((push.fromAddress) (address ee))

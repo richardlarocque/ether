@@ -17,7 +17,9 @@ module Ethereum.MMPTree.MMPTree where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Reader
 import Data.Array
+import Data.Byteable
 import Data.Bits
 import Data.Binary
 import Data.Binary.Get
@@ -28,6 +30,7 @@ import Data.Word.Odd
 import qualified Data.List as DL
 import qualified Data.Map as DM
 import qualified Data.ByteString.Lazy as L
+import Ethereum.Common
 import Ethereum.Encoding.HexPrefix
 import Ethereum.Encoding.RLP
 
@@ -80,8 +83,44 @@ instance Binary Tree where
 
         get = getSequence (getLeaf <|> getExtension <|> getBranch)
 
+-----
+
+fromTreeRef :: Storage -> TreeRef -> Tree
+fromTreeRef s tr =
+        case tr of
+                TreeHash 0 -> Empty
+                TreeHash h -> decodeTree $ fromMaybe (error "lookup failed") (DM.lookup h s)
+                Serialized bs -> decodeTree $ bs
+
+toTreeRef :: Tree -> TreeRef
+toTreeRef Empty = TreeHash 0
+toTreeRef t     = let serialized = encode t
+                  in if L.length serialized < 32
+                        then Serialized serialized
+                        else TreeHash $ hashLazyBytes serialized
+
+decodeTree :: L.ByteString -> Tree
+decodeTree bs = runGet get bs
+
+lookupTree :: TreeRef -> Reader Storage Tree
+lookupTree tr =
+        case tr of
+                TreeHash 0 -> return Empty
+                TreeHash h -> do 
+                        s <- ask
+                        let bs = fromMaybe (error "lookup failed") (DM.lookup h s) 
+                        return $ decodeTree bs
+                Serialized bs -> return $ decodeTree bs
+
+-----
+
 zeroRef :: TreeRef
 zeroRef = TreeHash 0
+
+emptyBranch :: Tree
+emptyBranch = Branch (listArray (0,15) (replicate 16 zeroRef)) Nothing
+
+-----
 
 getLeaf :: Get Tree
 getLeaf = do ns <- getHexPrefix True
@@ -116,16 +155,6 @@ nibbleize :: [Word8] -> [Word4]
 nibbleize bs = map fromIntegral $ concatMap toNibbles bs
         where toNibbles b = [b `shiftR` 4, b .&. 0x0f]
 
-fromTreeRef :: Storage -> TreeRef -> Tree
-fromTreeRef s tr =
-        case tr of
-                TreeHash 0 -> Empty
-                TreeHash h -> decodeTree $ fromMaybe (error "lookup failed") (DM.lookup h s)
-                Serialized bs -> decodeTree $ bs
-
-decodeTree :: L.ByteString -> Tree
-decodeTree bs = runGet get bs
-
 path :: Storage -> Tree -> [Word4] -> ([Tree], Maybe Item)
 path s t k = path' [] (fromTreeRef s) t k
 
@@ -145,3 +174,65 @@ path' acc tlookup tree ns = case tree of
         where recurse k tr = path' (tree:acc) tlookup (tlookup tr) k
               endHere mi = (tree:acc, mi)
 
+-----------------------------------
+
+updateTree  :: Tree -> ([Word4], Item) -> Reader Storage (Tree, [Tree])
+
+updateBranch :: Tree -> ([Word4], Item) -> Reader Storage (Tree, [Tree])
+updateBranch (Branch ts _) (ks, v) | null ks =
+        let b' = Branch ts (Just v) in return (b', [b'])
+updateBranch b@(Branch ts mi) (ks, v) = do
+        let i = DL.head ks
+        t <- lookupTree (ts ! i)
+        (t', newNodes) <- updateTree t (DL.tail ks, v)
+        let b' = updateBranchSubTree b (i, t')
+        return (b', b':newNodes)
+
+updateBranchSubTree :: Tree -> (Word4, Tree) -> Tree
+updateBranchSubTree (Branch arr mi) (k, t) =
+        let arr' = arr // [(k, toTreeRef t)]
+        in Branch arr' mi
+
+updateLeaf :: Tree -> ([Word4], Item) -> Reader Storage (Tree, [Tree])
+updateLeaf (Leaf lk _) (ik, iv) | ik == lk =
+        return $ let l' = (Leaf ik iv) in (l', [l'])
+updateLeaf (Leaf lk lv) (ik, iv) = do
+        let (cp, lsuf, isuf) = commonPrefix lk ik
+        (b1, ts1) <- emptyBranch `updateBranch` (isuf, iv)
+        (b2, ts2) <- b1          `updateBranch` (lsuf, lv)
+        if (not.null) cp
+           then let e = Extension cp (toTreeRef b2)
+                in return (e, [e] ++ [b2] ++ ts1 ++ ts2)
+           else return    (b2,       [b2] ++ ts1 ++ ts2)
+
+updateExtension :: Tree -> ([Word4], Item) -> Reader Storage (Tree, [Tree])
+updateExtension (Extension ek tr) (ik, iv) = do
+        -- NOTE: Our child tref *must* be a branch.
+        -- If it wasn't then this node should instead be a longer leaf
+        -- or a longer extension.
+        case commonPrefix ek ik of
+                ( _, esuf, isuf) | null esuf -> do
+                        b <- lookupTree tr
+                        b `updateBranch` (isuf, iv)
+
+                (cp, esuf, isuf) -> do
+                        let e1 = Extension (tail esuf) tr
+                        let b1 = emptyBranch `updateBranchSubTree` (head esuf, e1)
+                        (b2, ts) <- b1 `updateBranch` (isuf, iv)
+                        return $ tryPrependPrefix cp $ (b2, [b2,e1] ++ ts)
+
+tryPrependPrefix :: [Word4] -> (Tree, [Tree]) -> (Tree, [Tree])
+tryPrependPrefix ks x | null ks = x
+tryPrependPrefix ks (r, ns) = let e = Extension ks (toTreeRef r) in (e, e:ns)
+
+{-
+        if (not.null) cp
+           then let e = Extension cp (toTreeRef b2)
+                in return (e, [e] ++ [b2] ++ ts1 ++ ts2)
+-}
+
+commonPrefix [] ys = ([], [], ys)
+commonPrefix xs [] = ([], xs, [])
+commonPrefix (x:xs) (y:ys)
+    | x == y    = (\(acc, a1, a2) -> (x:acc, a1, a2)) (commonPrefix xs ys)
+    | otherwise = ([], x:xs, y:ys)
