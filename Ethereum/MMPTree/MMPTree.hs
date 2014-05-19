@@ -20,7 +20,6 @@ import Control.Monad
 import Control.Monad.Reader
 import Data.Char
 import Data.Array
-import Data.Bits
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
@@ -121,6 +120,9 @@ zeroRef = TreeHash 0
 emptyBranch :: Tree
 emptyBranch = Branch (listArray (0,15) (replicate 16 zeroRef)) Nothing
 
+initialTree :: (Storage, TreeRef)
+initialTree = (DM.empty, zeroRef)
+
 -----
 
 getLeaf :: Get Tree
@@ -183,7 +185,7 @@ path' acc tree ns = case tree of
         Empty  -> endHere $ Nothing
 
         Leaf ps i | ns == ps           -> endHere $ Just i
-        Leaf ps _ | head ns == head ps -> endHere $ Nothing
+        Leaf _  _                      -> endHere $ Nothing
 
         Extension ps t ->
                 case ps `DL.stripPrefix` ns of
@@ -248,6 +250,7 @@ tryPrependPrefix :: [Word4] -> (Tree, [Tree]) -> (Tree, [Tree])
 tryPrependPrefix ks x | null ks = x
 tryPrependPrefix ks (r, ns) = let e = Extension ks (toTreeRef r) in (e, e:ns)
 
+commonPrefix ::  Eq t => [t] -> [t] -> ([t], [t], [t])
 commonPrefix [] ys = ([], [], ys)
 commonPrefix xs [] = ([], xs, [])
 commonPrefix (x:xs) (y:ys)

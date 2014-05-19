@@ -3,6 +3,7 @@ module Tests.HUnit.MMPTree(tests) where
 import Data.Array
 import Data.Binary
 import Data.Char
+import Data.Maybe
 import Data.Word.Odd
 import Ethereum.MMPTree.MMPTree
 import qualified Data.ByteString.Lazy as L
@@ -18,6 +19,9 @@ roundTripTest x = testCase (show x) $ x @=? (decode.encode) x
 item :: [Word8] -> Item
 item = Embedded . L.pack
 
+unpackItem :: Item -> [Word8]
+unpackItem (Embedded e) = L.unpack e
+
 key :: String -> [Word4]
 key = nibbleize.(map (fromIntegral.ord))
 
@@ -30,7 +34,7 @@ fullBranchArray1 = listArray (0,15) (map TreeHash [0..16])
 fullBranchArray2 :: Array Word4 TreeRef
 fullBranchArray2 = listArray (0,15) (map (Serialized . L.singleton) [0..16])
 
-serialize_tests :: [Test.Framework.Test]
+serialize_tests :: Test.Framework.Test
 serialize_tests = testGroup "Serialization" [
         testGroup "Item" [
                 roundTripTest $ item [],
@@ -66,9 +70,28 @@ serialize_tests = testGroup "Serialization" [
                 ]
         ]
 
+putAndGetTest :: [(String, String)] -> Test.Framework.Test
+putAndGetTest pairs = testCase (show pairs) $ pairs @=? (putAndGet pairs)
+
+putAndGet :: [(String, String)] -> [(String, String)]
+putAndGet ps = getMany (putMany initialTree ps) (map fst ps)  
+        
+putMany :: (Storage, TreeRef) -> [(String, String)] -> (Storage, TreeRef)
+putMany s ps =
+        let ps' = map (\(k, v) -> (k, item $ map (fromIntegral.ord) v)) ps :: [(String, Item)]
+        in foldr (flip insert) s ps'
+
+getMany :: (Storage, TreeRef) -> [String] -> [(String, String)]
+getMany s ks = mapMaybe (doLookup s) ks 
+        where doLookup s' k =
+                do v <- Ethereum.MMPTree.MMPTree.lookup s' k
+                   let v' = map (chr.fromIntegral) $ unpackItem v
+                   return (k, v')
+                      
 insert_tests = testGroup "Insertion" [
         testGroup "Insert" [
-                putAndGetTest [("a", 1234)] "a"
+                putAndGetTest [("a", "xyz")],
+                putAndGetTest [("a", "xyz"), ("ab", "zed")]
                 ]
         ]
 
