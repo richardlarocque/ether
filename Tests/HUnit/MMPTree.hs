@@ -88,11 +88,21 @@ getMany s ks = mapMaybe (doLookup s) ks
                    let v' = map (chr.fromIntegral) $ unpackItem v
                    return (k, v')
                       
+-- TODO: Do this more exhaustively.
+-- TODO: Verify correctness of resulting trees.
 insert_tests = testGroup "Insertion" [
-        testGroup "Insert" [
+        testGroup "InsertBranches" [
                 putAndGetTest [("a", "xyz")],
-                putAndGetTest [("a", "xyz"), ("ab", "zed")]
-                ]
+                putAndGetTest [("a", "xyz"), ("ab", "zed")],
+                putAndGetTest [("a", "xyz"), ("ab", "zed"), ("abc", "bar")],
+                putAndGetTest [("a", "xyz"), ("abc", "bar")]
+                ],
+        testGroup "InsertWithPrefix" [
+                putAndGetTest [("pre.a", "xyz")],
+                putAndGetTest [("pre.a", "xyz"), ("pre.ab", "zed")],
+                putAndGetTest [("pre.a", "xyz"), ("pre.ab", "zed"), ("pre.abc", "bar")],
+                putAndGetTest [("pre.a", "xyz"), ("pre.abc", "bar")]
+        ]
         ]
 
 tests :: [Test.Framework.Test]

@@ -40,11 +40,12 @@ getArrayHeader = do
                 _  | b <= 183  -> do
                         skip 1
                         return $ (fromIntegral b) - 128
-                _             -> do
+                _  | b <= 192 -> do
                         skip 1
                         ls <- getLazyByteString ((fromIntegral b) - 183)
                         len <- unBE ls
                         return len
+                _ -> fail "Not paresable as array"
 
 getArray ::  Get L.ByteString
 getArray = do len <- getArrayHeader

@@ -81,7 +81,8 @@ instance Binary Tree where
                         Just i -> put i
                         Nothing -> return ()
 
-        get = getSequence (getLeaf <|> getExtension <|> getBranch)
+        get = do len <- getSequenceHeader
+                 isolate (fromIntegral len) (getLeaf <|> getExtension <|> getBranch)
 
 -----
 
@@ -160,7 +161,6 @@ updateStorage s ts = foldr doInsert s ts
                 TreeHash 0 -> s1
                 TreeHash k -> DM.insert k (encode t) s1
                 _ -> s1
-        
 
 insert :: (Storage, TreeRef) -> (String, Item) -> (Storage, TreeRef)
 insert (s, tr) (k, v) =

@@ -1,5 +1,6 @@
 module Tests.HUnit.RLP(tests) where
 
+import Data.Char
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
@@ -22,6 +23,9 @@ roundTripTestScalar = roundTripTest (\x -> runPut $ putScalar x) (runGet $ getSc
 
 roundTripTestBinary :: (Binary a, Show a, Eq a) => a -> Test.Framework.Test
 roundTripTestBinary = roundTripTest encode decode
+
+failToReadRaw :: Get a -> L.ByteString -> Test.Framework.Test
+failToReadRaw g bs = testCase (show bs) $ assert $ isLeft $ runGetOrFail g bs
 
 failToRead :: (Binary a) => Get a -> [Word8] -> Test.Framework.Test
 failToRead g bs = testCase (show bs) $ assert $ isLeft $ runGetOrFail g (L.pack bs)
@@ -74,5 +78,12 @@ tests = [
                 failToRead (get :: Get Seq1) [248],     -- Missing length.
                 failToRead (get :: Get Seq1) [249,10],  -- Missing bytes.
                 failToRead (get :: Get Seq1) [193,1]    -- Sub-parse failure.
+        ],
+        testGroup "HardCoded" [
+                -- Sequences should not be successfully read as arrays.
+                failToReadRaw (getArray) $ asByteString "\198\197\&2\131zed\128\128\128\128\128\128\128\128\128\131xyz"
         ]
         ]
+
+asByteString :: String -> L.ByteString
+asByteString = L.pack . (map (fromIntegral.ord))
