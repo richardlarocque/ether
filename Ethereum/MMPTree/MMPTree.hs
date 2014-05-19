@@ -33,6 +33,10 @@ import Ethereum.Common
 import Ethereum.Encoding.HexPrefix
 import Ethereum.Encoding.RLP
 
+import Debug.Trace
+
+traceS x = traceShow x x
+
 data Tree = Empty
           | Leaf [Word4] Item
           | Extension [Word4] TreeRef
@@ -164,7 +168,7 @@ updateStorage s ts = foldr doInsert s ts
 
 insert :: (Storage, TreeRef) -> (String, Item) -> (Storage, TreeRef)
 insert (s, tr) (k, v) =
-        let (r', ns) = runReader doInsert s in (s `updateStorage` ns, toTreeRef r')
+        let (r', ns) = runReader doInsert s in traceS (s `updateStorage` ns, toTreeRef r')
         where doInsert = do
                 let k' = nibbleize $ map (fromIntegral.ord) k
                 t <- lookupTree tr
@@ -228,7 +232,10 @@ treeInsert (Extension ek tr) (ik, iv) =
         case commonPrefix ek ik of
                 ( _, esuf, isuf) | null esuf -> do
                         b <- lookupTree tr
-                        b `treeInsert` (isuf, iv)
+                        (b', ts) <- b `treeInsert` (isuf, iv)
+                        let e' = Extension ek (toTreeRef b')
+                        return (e', e':ts)
+
 
                 (cp, esuf, isuf) -> do
                         let e1 = Extension (tail esuf) tr

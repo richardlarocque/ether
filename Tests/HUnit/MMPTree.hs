@@ -79,7 +79,7 @@ putAndGet ps = getMany (putMany initialTree ps) (map fst ps)
 putMany :: (Storage, TreeRef) -> [(String, String)] -> (Storage, TreeRef)
 putMany s ps =
         let ps' = map (\(k, v) -> (k, item $ map (fromIntegral.ord) v)) ps :: [(String, Item)]
-        in foldr (flip insert) s ps'
+        in foldr (flip insert) s (reverse ps')
 
 getMany :: (Storage, TreeRef) -> [String] -> [(String, String)]
 getMany s ks = mapMaybe (doLookup s) ks 
@@ -102,6 +102,18 @@ insert_tests = testGroup "Insertion" [
                 putAndGetTest [("pre.a", "xyz"), ("pre.ab", "zed")],
                 putAndGetTest [("pre.a", "xyz"), ("pre.ab", "zed"), ("pre.abc", "bar")],
                 putAndGetTest [("pre.a", "xyz"), ("pre.abc", "bar")]
+        ],
+        testGroup "SomeBigItems" [
+                putAndGetTest [("a", replicate 40 'c')],
+                putAndGetTest [("a", replicate 40 'c'), ("abcd", "x")],
+                putAndGetTest [("a", replicate 40 'c'), ("b", "x")]
+        ],
+        testGroup "SplittingExtensions" [
+                putAndGetTest [("abc1xx", "x"), ("abc2zz", "z")],
+                putAndGetTest [("abc1xx", "x"), ("abc2zz", "z"), ("ax", "foo")],
+                putAndGetTest [("abc1xx", "x"), ("abc2zz", "z"), ("axe", "foo")],
+                putAndGetTest [("abc1xx", "x"), ("abc2zz", "z"), ("abc3", "foo")],
+                putAndGetTest [("abc1xx", "x"), ("abc2zz", "z"), ("zy", "foo")]
         ]
         ]
 
