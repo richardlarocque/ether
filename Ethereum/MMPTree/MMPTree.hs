@@ -18,8 +18,8 @@ module Ethereum.MMPTree.MMPTree where
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Reader
+import Data.Char
 import Data.Array
-import Data.Byteable
 import Data.Bits
 import Data.Binary
 import Data.Binary.Get
@@ -51,7 +51,7 @@ type Storage = DM.Map Word256 L.ByteString
 
 instance Ix Word4 where
         range (a,b) = [a..b]
-        index (a,b) i = fromIntegral $ i - a
+        index (a,_) i = fromIntegral $ i - a
         inRange (l,u) i = l <= i && i <= u
 
 ----
@@ -69,6 +69,7 @@ instance Binary Item where
         get = getArray >>= return.Embedded
 
 instance Binary Tree where
+        put (Empty) = error "Can't directly put empty tree"
         put (Leaf ns i) = putSequence $ do
                 putHexPrefix ns True
                 put i
@@ -151,17 +152,38 @@ getHexPrefix f = do
         len <- getArrayHeader
         isolate (fromIntegral len) (getHexPrefixBytes f)
 
-nibbleize :: [Word8] -> [Word4]
-nibbleize bs = map fromIntegral $ concatMap toNibbles bs
-        where toNibbles b = [b `shiftR` 4, b .&. 0x0f]
+updateStorage :: Storage -> [Tree] -> Storage
+updateStorage s ts = foldr doInsert s ts
+        where doInsert t s1 = case toTreeRef t of
+                TreeHash 0 -> s1
+                TreeHash k -> DM.insert k (encode t) s1
+                _ -> s1
+        
 
-path :: Storage -> Tree -> [Word4] -> ([Tree], Maybe Item)
-path s t k = path' [] (fromTreeRef s) t k
+insert :: (Storage, TreeRef) -> (String, Item) -> (Storage, TreeRef)
+insert (s, tr) (k, v) =
+        let (r', ns) = runReader doInsert s in (s `updateStorage` ns, toTreeRef r')
+        where doInsert = do
+                let k' = nibbleize $ map (fromIntegral.ord) k
+                t <- lookupTree tr
+                treeInsert t (k', v)
 
-path' :: [Tree] -> (TreeRef -> Tree) -> Tree -> [Word4] -> ([Tree], Maybe Item)
-path' acc tlookup tree ns = case tree of
+lookup :: (Storage, TreeRef) -> String -> Maybe Item
+lookup (s, tr) k = runReader doLookup s
+        where doLookup = do t <- lookupTree tr
+                            let k' = nibbleize $ map (fromIntegral.ord) k
+                            (_, i) <- path t k'
+                            return i
+
+path :: Tree -> [Word4] -> Reader Storage ([Tree], Maybe Item)
+path t k = path' [] t k
+
+path' :: [Tree] -> Tree -> [Word4] -> Reader Storage ([Tree], Maybe Item)
+path' acc tree ns = case tree of
+        Empty  -> endHere $ Nothing
+
         Leaf ps i | ns == ps           -> endHere $ Just i
-        Leaf ps i | head ns == head ps -> endHere $ Nothing
+        Leaf ps _ | head ns == head ps -> endHere $ Nothing
 
         Extension ps t ->
                 case ps `DL.stripPrefix` ns of
@@ -171,68 +193,69 @@ path' acc tlookup tree ns = case tree of
         Branch _  mi | null ns  -> endHere mi
         Branch ts _             -> recurse (tail ns) (ts ! head ns)
 
-        where recurse k tr = path' (tree:acc) tlookup (tlookup tr) k
-              endHere mi = (tree:acc, mi)
+        where recurse k tr =
+                do t <- lookupTree tr
+                   path' (tree:acc) t k
+              endHere mi = return (tree:acc, mi)
 
 -----------------------------------
 
-updateTree  :: Tree -> ([Word4], Item) -> Reader Storage (Tree, [Tree])
+treeInsert :: Tree -> ([Word4], Item) -> Reader Storage (Tree, [Tree])
 
-updateBranch :: Tree -> ([Word4], Item) -> Reader Storage (Tree, [Tree])
-updateBranch (Branch ts _) (ks, v) | null ks =
-        let b' = Branch ts (Just v) in return (b', [b'])
-updateBranch b@(Branch ts mi) (ks, v) = do
-        let i = DL.head ks
-        t <- lookupTree (ts ! i)
-        (t', newNodes) <- updateTree t (DL.tail ks, v)
-        let b' = updateBranchSubTree b (i, t')
-        return (b', b':newNodes)
+-- Empty
+treeInsert Empty (ik, iv) =
+        let l = Leaf ik iv in return (l, [l])
 
-updateBranchSubTree :: Tree -> (Word4, Tree) -> Tree
-updateBranchSubTree (Branch arr mi) (k, t) =
-        let arr' = arr // [(k, toTreeRef t)]
-        in Branch arr' mi
-
-updateLeaf :: Tree -> ([Word4], Item) -> Reader Storage (Tree, [Tree])
-updateLeaf (Leaf lk _) (ik, iv) | ik == lk =
+-- Leaves
+treeInsert (Leaf lk _) (ik, iv) | ik == lk =
         return $ let l' = (Leaf ik iv) in (l', [l'])
-updateLeaf (Leaf lk lv) (ik, iv) = do
+treeInsert (Leaf lk lv) (ik, iv) = do
         let (cp, lsuf, isuf) = commonPrefix lk ik
-        (b1, ts1) <- emptyBranch `updateBranch` (isuf, iv)
-        (b2, ts2) <- b1          `updateBranch` (lsuf, lv)
+        (b1, ts1) <- emptyBranch `treeInsert` (isuf, iv)
+        (b2, ts2) <- b1          `treeInsert` (lsuf, lv)
         if (not.null) cp
            then let e = Extension cp (toTreeRef b2)
                 in return (e, [e] ++ [b2] ++ ts1 ++ ts2)
            else return    (b2,       [b2] ++ ts1 ++ ts2)
 
-updateExtension :: Tree -> ([Word4], Item) -> Reader Storage (Tree, [Tree])
-updateExtension (Extension ek tr) (ik, iv) = do
+-- Extensions
+treeInsert (Extension ek tr) (ik, iv) =
         -- NOTE: Our child tref *must* be a branch.
         -- If it wasn't then this node should instead be a longer leaf
         -- or a longer extension.
         case commonPrefix ek ik of
                 ( _, esuf, isuf) | null esuf -> do
                         b <- lookupTree tr
-                        b `updateBranch` (isuf, iv)
+                        b `treeInsert` (isuf, iv)
 
                 (cp, esuf, isuf) -> do
                         let e1 = Extension (tail esuf) tr
                         let b1 = emptyBranch `updateBranchSubTree` (head esuf, e1)
-                        (b2, ts) <- b1 `updateBranch` (isuf, iv)
+                        (b2, ts) <- b1 `treeInsert` (isuf, iv)
                         return $ tryPrependPrefix cp $ (b2, [b2,e1] ++ ts)
+
+-- Branches
+treeInsert (Branch ts _) (ks, v) | null ks =
+        let b' = Branch ts (Just v) in return (b', [b'])
+treeInsert b@(Branch ts _) (ks, v) = do
+        let i = DL.head ks
+        t <- lookupTree (ts ! i)
+        (t', newNodes) <- treeInsert t (DL.tail ks, v)
+        let b' = updateBranchSubTree b (i, t')
+        return (b', b':newNodes)
 
 tryPrependPrefix :: [Word4] -> (Tree, [Tree]) -> (Tree, [Tree])
 tryPrependPrefix ks x | null ks = x
 tryPrependPrefix ks (r, ns) = let e = Extension ks (toTreeRef r) in (e, e:ns)
-
-{-
-        if (not.null) cp
-           then let e = Extension cp (toTreeRef b2)
-                in return (e, [e] ++ [b2] ++ ts1 ++ ts2)
--}
 
 commonPrefix [] ys = ([], [], ys)
 commonPrefix xs [] = ([], xs, [])
 commonPrefix (x:xs) (y:ys)
     | x == y    = (\(acc, a1, a2) -> (x:acc, a1, a2)) (commonPrefix xs ys)
     | otherwise = ([], x:xs, y:ys)
+
+updateBranchSubTree :: Tree -> (Word4, Tree) -> Tree
+updateBranchSubTree (Branch arr mi) (k, t) =
+        let arr' = arr // [(k, toTreeRef t)]
+        in Branch arr' mi
+updateBranchSubTree _ _  = error "Function applies to branches only"

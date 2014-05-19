@@ -21,6 +21,7 @@ Library
                        byteable >= 0.1 && < 0.2,
                        bytestring >= 0.10 && < 0.11,
                        binary >= 0.7 && < 0.8,
+                       mtl >= 2.2 && < 2.3,
                        data-lens >= 2.10 && < 2.11,
                        OddWord >= 1.0 && < 1.1
 
@@ -52,6 +53,7 @@ Test-suite ether_tests
                        cryptohash >= 0.11 && < 0.12,
                        data-lens >= 2.10 && < 2.11,
                        largeword >=1.2 && <1.3,
+                       mtl >= 2.2 && < 2.3,
                        vector >= 0.10 && < 0.11,
                        OddWord >= 1.0 && < 1.1
 

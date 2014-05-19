@@ -19,6 +19,8 @@ import Data.Binary.Get
 import Data.Word.Odd
 import qualified Data.ByteString.Lazy as L
 
+import Ethereum.Common
+
 data HPArray = HPArray [Word4] Bool
         deriving (Show,Eq)
 
@@ -53,19 +55,3 @@ getHexPrefix' = do
                         else [lowNibble b]
         bs <- getRemainingLazyByteString
         return $ HPArray (prefix ++ (nibbleize (L.unpack bs))) ft
-
-lowNibble  :: Word8 -> Word4
-lowNibble x   = (fromIntegral $ 0x0f .&. x)
-
-highNibble :: Word8 -> Word4
-highNibble x  = (fromIntegral $ x `shiftR` 4)
-
-toHigh :: Word4 -> Word8
-toHigh = (16*).fromIntegral
-
-toLow :: Word4 -> Word8
-toLow = fromIntegral
-
-nibbleize :: [Word8] -> [Word4]
-nibbleize bs = map fromIntegral $ concatMap toNibbles bs
-        where toNibbles b = [highNibble b, lowNibble b]

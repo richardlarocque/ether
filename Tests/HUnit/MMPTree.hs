@@ -10,6 +10,8 @@ import Test.HUnit
 import Test.Framework
 import Test.Framework.Providers.HUnit
 
+import Ethereum.Common
+
 roundTripTest :: (Show a, Eq a, Binary a) => a -> Test.Framework.Test
 roundTripTest x = testCase (show x) $ x @=? (decode.encode) x
 
@@ -28,8 +30,8 @@ fullBranchArray1 = listArray (0,15) (map TreeHash [0..16])
 fullBranchArray2 :: Array Word4 TreeRef
 fullBranchArray2 = listArray (0,15) (map (Serialized . L.singleton) [0..16])
 
-tests :: [Test.Framework.Test]
-tests = [
+serialize_tests :: [Test.Framework.Test]
+serialize_tests = testGroup "Serialization" [
         testGroup "Item" [
                 roundTripTest $ item [],
                 roundTripTest $ item [1],
@@ -63,3 +65,12 @@ tests = [
                 roundTripTest $ Branch fullBranchArray2 $ Just (item [0..10])
                 ]
         ]
+
+insert_tests = testGroup "Insertion" [
+        testGroup "Insert" [
+                putAndGetTest [("a", 1234)] "a"
+                ]
+        ]
+
+tests :: [Test.Framework.Test]
+tests = [ serialize_tests, insert_tests ]
