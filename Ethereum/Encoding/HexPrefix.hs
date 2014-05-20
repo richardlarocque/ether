@@ -13,16 +13,28 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Appendix D
 
 module Ethereum.Encoding.HexPrefix where
 
-import Data.Bits
 import Data.Binary
 import Data.Binary.Get
+import Data.Binary.Put
+import Data.Bits
 import Data.Word.Odd
+import Ethereum.Encoding.RLP
 import qualified Data.ByteString.Lazy as L
 
 import Ethereum.Common
 
 data HPArray = HPArray [Word4] Bool
         deriving (Show,Eq)
+
+putHexPrefix :: [Word4] -> Bool -> Put
+putHexPrefix ns f =
+        let bs = runPut (putHexPrefixBytes ns f)
+        in putArray bs
+
+getHexPrefix :: Bool -> Get [Word4]
+getHexPrefix f = do
+        len <- getArrayHeader
+        isolate (fromIntegral len) (getHexPrefixBytes f)
 
 putHexPrefixBytes :: [Word4] -> Bool -> Put
 putHexPrefixBytes ns b = do

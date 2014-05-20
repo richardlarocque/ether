@@ -13,7 +13,16 @@ Portability :  non-portable (Unknown portability)
 Translation of Ethereum Yellow Paper, Proof-of-Concept V, Appendix D
 -}
 
-module Ethereum.MMPTree.MMPTree where
+module Ethereum.MMPTree.MMPTree(
+        Item(..),
+        Storage,
+        TreeRef(..),
+        Tree(..),
+        initialTree,
+        insert,
+        Ethereum.MMPTree.MMPTree.lookup) where
+
+-- TODO: Many of those exports are meant only for tests...
 
 import Control.Applicative
 import Control.Monad
@@ -22,7 +31,6 @@ import Data.Char
 import Data.Array
 import Data.Binary
 import Data.Binary.Get
-import Data.Binary.Put
 import Data.LargeWord
 import Data.Maybe
 import Data.Word.Odd
@@ -32,10 +40,6 @@ import qualified Data.ByteString.Lazy as L
 import Ethereum.Common
 import Ethereum.Encoding.HexPrefix
 import Ethereum.Encoding.RLP
-
-import Debug.Trace
-
-traceS x = traceShow x x
 
 data Tree = Empty
           | Leaf [Word4] Item
@@ -90,32 +94,22 @@ instance Binary Tree where
 
 -----
 
-fromTreeRef :: Storage -> TreeRef -> Tree
-fromTreeRef s tr =
-        case tr of
-                TreeHash 0 -> Empty
-                TreeHash h -> decodeTree $ fromMaybe (error "lookup failed") (DM.lookup h s)
-                Serialized bs -> decodeTree $ bs
-
-toTreeRef :: Tree -> TreeRef
-toTreeRef Empty = TreeHash 0
-toTreeRef t     = let serialized = encode t
+tref :: Tree -> TreeRef
+tref Empty = TreeHash 0
+tref t     = let serialized = encode t
                   in if L.length serialized < 32
                         then Serialized serialized
                         else TreeHash $ hashLazyBytes serialized
 
-decodeTree :: L.ByteString -> Tree
-decodeTree bs = runGet get bs
-
-lookupTree :: TreeRef -> Reader Storage Tree
-lookupTree tr =
+deref :: TreeRef -> Reader Storage Tree
+deref tr =
         case tr of
                 TreeHash 0 -> return Empty
                 TreeHash h -> do 
                         s <- ask
                         let bs = fromMaybe (error "lookup failed") (DM.lookup h s) 
-                        return $ decodeTree bs
-                Serialized bs -> return $ decodeTree bs
+                        return $ runGet get bs
+                Serialized bs -> return $ runGet get bs
 
 -----
 
@@ -149,60 +143,48 @@ getBranch = do
            else return Nothing
         return $ Branch (listArray (0,15) trs) mi
 
-putHexPrefix :: [Word4] -> Bool -> Put
-putHexPrefix ns f =
-        let bs = runPut (putHexPrefixBytes ns f)
-        in putArray bs
+----
 
-getHexPrefix :: Bool -> Get [Word4]
-getHexPrefix f = do
-        len <- getArrayHeader
-        isolate (fromIntegral len) (getHexPrefixBytes f)
+-- | Inserts an item into the storage tree.
+insert :: (Storage, TreeRef) -> (String, Item) -> (Storage, TreeRef)
+insert (s, tr) (k, v) =
+        let (r', ns) = runReader doInsert s in (s `updateStorage` ns, tref r')
+        where doInsert = do
+                let k' = nibbleize $ map (fromIntegral.ord) k
+                t <- deref tr
+                treeInsert t (k', v)
+
+-- | Looks up an item in the storage tree.
+lookup :: (Storage, TreeRef) -> String -> Maybe Item
+lookup (s, tr) k = runReader doLookup s
+        where doLookup = do let k' = nibbleize $ map (fromIntegral.ord) k
+                            deref tr >>= lookup' k'
+
+-- Helpers
 
 updateStorage :: Storage -> [Tree] -> Storage
-updateStorage s ts = foldr doInsert s ts
-        where doInsert t s1 = case toTreeRef t of
+updateStorage s ts = foldr addToStorage s ts
+        where addToStorage t s1 = case tref t of
                 TreeHash 0 -> s1
                 TreeHash k -> DM.insert k (encode t) s1
                 _ -> s1
 
-insert :: (Storage, TreeRef) -> (String, Item) -> (Storage, TreeRef)
-insert (s, tr) (k, v) =
-        let (r', ns) = runReader doInsert s in traceS (s `updateStorage` ns, toTreeRef r')
-        where doInsert = do
-                let k' = nibbleize $ map (fromIntegral.ord) k
-                t <- lookupTree tr
-                treeInsert t (k', v)
+lookup' :: [Word4] -> Tree -> Reader Storage (Maybe Item)
+lookup' ns tree = case tree of
+        Empty                   -> return Nothing
 
-lookup :: (Storage, TreeRef) -> String -> Maybe Item
-lookup (s, tr) k = runReader doLookup s
-        where doLookup = do t <- lookupTree tr
-                            let k' = nibbleize $ map (fromIntegral.ord) k
-                            (_, i) <- path t k'
-                            return i
-
-path :: Tree -> [Word4] -> Reader Storage ([Tree], Maybe Item)
-path t k = path' [] t k
-
-path' :: [Tree] -> Tree -> [Word4] -> Reader Storage ([Tree], Maybe Item)
-path' acc tree ns = case tree of
-        Empty  -> endHere $ Nothing
-
-        Leaf ps i | ns == ps           -> endHere $ Just i
-        Leaf _  _                      -> endHere $ Nothing
+        Leaf ps i | ns == ps    -> return $ Just i
+        Leaf _  _               -> return Nothing
 
         Extension ps t ->
                 case ps `DL.stripPrefix` ns of
                         (Just rest) -> recurse rest t
-                        Nothing     -> endHere $ Nothing
+                        Nothing     -> return Nothing
 
-        Branch _  mi | null ns  -> endHere mi
+        Branch _  mi | null ns  -> return mi
         Branch ts _             -> recurse (tail ns) (ts ! head ns)
 
-        where recurse k tr =
-                do t <- lookupTree tr
-                   path' (tree:acc) t k
-              endHere mi = return (tree:acc, mi)
+        where recurse k tr = deref tr >>= lookup' k
 
 -----------------------------------
 
@@ -220,7 +202,7 @@ treeInsert (Leaf lk lv) (ik, iv) = do
         (b1, ts1) <- emptyBranch `treeInsert` (isuf, iv)
         (b2, ts2) <- b1          `treeInsert` (lsuf, lv)
         if (not.null) cp
-           then let e = Extension cp (toTreeRef b2)
+           then let e = Extension cp (tref b2)
                 in return (e, [e] ++ [b2] ++ ts1 ++ ts2)
            else return    (b2,       [b2] ++ ts1 ++ ts2)
 
@@ -231,9 +213,9 @@ treeInsert (Extension ek tr) (ik, iv) =
         -- or a longer extension.
         case commonPrefix ek ik of
                 ( _, esuf, isuf) | null esuf -> do
-                        b <- lookupTree tr
+                        b <- deref tr
                         (b', ts) <- b `treeInsert` (isuf, iv)
-                        let e' = Extension ek (toTreeRef b')
+                        let e' = Extension ek (tref b')
                         return (e', e':ts)
 
 
@@ -248,15 +230,19 @@ treeInsert (Branch ts _) (ks, v) | null ks =
         let b' = Branch ts (Just v) in return (b', [b'])
 treeInsert b@(Branch ts _) (ks, v) = do
         let i = DL.head ks
-        t <- lookupTree (ts ! i)
+        t <- deref (ts ! i)
         (t', newNodes) <- treeInsert t (DL.tail ks, v)
         let b' = updateBranchSubTree b (i, t')
         return (b', b':newNodes)
 
+-- Helper functions
+
+-- | Prepend an extension branch if it makes sense to do so.
 tryPrependPrefix :: [Word4] -> (Tree, [Tree]) -> (Tree, [Tree])
 tryPrependPrefix ks x | null ks = x
-tryPrependPrefix ks (r, ns) = let e = Extension ks (toTreeRef r) in (e, e:ns)
+tryPrependPrefix ks (r, ns) = let e = Extension ks (tref r) in (e, e:ns)
 
+-- | Find the common prefix and remaining suffixes.
 commonPrefix ::  Eq t => [t] -> [t] -> ([t], [t], [t])
 commonPrefix [] ys = ([], [], ys)
 commonPrefix xs [] = ([], xs, [])
@@ -264,8 +250,9 @@ commonPrefix (x:xs) (y:ys)
     | x == y    = (\(acc, a1, a2) -> (x:acc, a1, a2)) (commonPrefix xs ys)
     | otherwise = ([], x:xs, y:ys)
 
+-- | Inserts a subtree into a branch node.
 updateBranchSubTree :: Tree -> (Word4, Tree) -> Tree
 updateBranchSubTree (Branch arr mi) (k, t) =
-        let arr' = arr // [(k, toTreeRef t)]
+        let arr' = arr // [(k, tref t)]
         in Branch arr' mi
 updateBranchSubTree _ _  = error "Function applies to branches only"
