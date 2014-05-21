@@ -1,3 +1,7 @@
 -- Not clear that memory, input data, etc. is *byte* addressable.
 -- Which SHA3?  My library is Kekkak..
 -- CALLDATACOPY, CODECOPY: surely it was supposed to be three *input* arguments?
+-- Word size of '\blackboard{P}' or scalars is not really specified, though
+   it is often implicitly limited.  RLP serialization seems to limit it at
+   around 2^80...
+-- Section 4.2: Was that meant to be T_v, T_r, T_s?

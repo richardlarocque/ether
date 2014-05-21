@@ -37,6 +37,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as V
 
+-- TODO: Remove a bunch of these dumb definitions.
 type Gas = Integer
 type MemSlice = V.Vector Word8
 type Stack = [Word256]

@@ -27,17 +27,19 @@ Library
 
   ghc-options:         -O2 -Wall
   exposed-modules:
+      Ethereum.Common
       Ethereum.EVM.ExecutionEnvironment
       Ethereum.EVM.FeeSchedule
       Ethereum.EVM.InstructionSet
       Ethereum.EVM.MachineState
       Ethereum.EVM.VM
-      Ethereum.Encoding.RLP
       Ethereum.Encoding.HexPrefix
+      Ethereum.Encoding.RLP
       Ethereum.MMPTree.MMPTree
       Ethereum.SimpleTypes
+      Ethereum.State.Account
+      Ethereum.State.Transaction
 
-  
   default-language:    Haskell2010
 
 Test-suite ether_tests
