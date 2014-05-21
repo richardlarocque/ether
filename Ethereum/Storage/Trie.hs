@@ -1,8 +1,8 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
 {- |
-Module      :  Ethereum.EVM.FeeSchedule
-Description :  Fee schedule declarations for Ethereum
+Module      :  Ethereum.Storage.Trie
+Description :  Modified Merkle Patricia Tree for Ethereum state tracking.
 Copyright   :  (c) Richard Larocque
 License     :  GPL-3.0+
 
@@ -13,14 +13,13 @@ Portability :  non-portable (Unknown portability)
 Translation of Ethereum Yellow Paper, Proof-of-Concept V, Appendix D
 -}
 
-module Ethereum.MMPTree.MMPTree(
+module Ethereum.Storage.Trie(
         Item(..),
-        Storage,
         TreeRef(..),
         Tree(..),
         initialTree,
         insert,
-        Ethereum.MMPTree.MMPTree.lookup) where
+        Ethereum.Storage.Trie.lookup) where
 
 -- TODO: Many of those exports are meant only for tests...
 
@@ -35,9 +34,9 @@ import Data.LargeWord
 import Data.Maybe
 import Data.Word.Odd
 import qualified Data.List as DL
-import qualified Data.Map as DM
 import qualified Data.ByteString.Lazy as L
 import Ethereum.Common
+import Ethereum.Storage.HashMap
 import Ethereum.Encoding.HexPrefix
 import Ethereum.Encoding.RLP
 
@@ -53,8 +52,6 @@ data Item = Embedded L.ByteString
 data TreeRef = Serialized L.ByteString
              | TreeHash Word256 
              deriving (Show, Eq)
-
-type Storage = DM.Map Word256 L.ByteString
 
 instance Ix Word4 where
         range (a,b) = [a..b]
@@ -101,13 +98,13 @@ tref t     = let serialized = encode t
                         then Serialized serialized
                         else TreeHash $ hashLazyBytes serialized
 
-deref :: TreeRef -> Reader Storage Tree
+deref :: TreeRef -> Reader MapStorage Tree
 deref tr =
         case tr of
                 TreeHash 0 -> return Empty
                 TreeHash h -> do 
                         s <- ask
-                        let bs = fromMaybe (error "lookup failed") (DM.lookup h s) 
+                        let bs = fromMaybe (error "lookup failed") (load h s) 
                         return $ runGet get bs
                 Serialized bs -> return $ runGet get bs
 
@@ -119,8 +116,8 @@ zeroRef = TreeHash 0
 emptyBranch :: Tree
 emptyBranch = Branch (listArray (0,15) (replicate 16 zeroRef)) Nothing
 
-initialTree :: (Storage, TreeRef)
-initialTree = (DM.empty, zeroRef)
+initialTree :: (MapStorage, TreeRef)
+initialTree = (emptyMapStorage, zeroRef)
 
 -----
 
@@ -145,8 +142,8 @@ getBranch = do
 
 ----
 
--- | Inserts an item into the storage tree.
-insert :: (Storage, TreeRef) -> (String, Item) -> (Storage, TreeRef)
+-- | Inserts an item into the trie.
+insert :: (MapStorage, TreeRef) -> (String, Item) -> (MapStorage, TreeRef)
 insert (s, tr) (k, v) =
         let (r', ns) = runReader doInsert s in (s `updateStorage` ns, tref r')
         where doInsert = do
@@ -154,22 +151,22 @@ insert (s, tr) (k, v) =
                 t <- deref tr
                 treeInsert t (k', v)
 
--- | Looks up an item in the storage tree.
-lookup :: (Storage, TreeRef) -> String -> Maybe Item
+-- | Looks up an item in the trie.
+lookup :: (MapStorage, TreeRef) -> String -> Maybe Item
 lookup (s, tr) k = runReader doLookup s
         where doLookup = do let k' = nibbleize $ map (fromIntegral.ord) k
                             deref tr >>= lookup' k'
 
 -- Helpers
 
-updateStorage :: Storage -> [Tree] -> Storage
+updateStorage :: MapStorage -> [Tree] -> MapStorage
 updateStorage s ts = foldr addToStorage s ts
         where addToStorage t s1 = case tref t of
                 TreeHash 0 -> s1
-                TreeHash k -> DM.insert k (encode t) s1
+                TreeHash k -> store k (encode t) s1
                 _ -> s1
 
-lookup' :: [Word4] -> Tree -> Reader Storage (Maybe Item)
+lookup' :: [Word4] -> Tree -> Reader MapStorage (Maybe Item)
 lookup' ns tree = case tree of
         Empty                   -> return Nothing
 
@@ -188,7 +185,7 @@ lookup' ns tree = case tree of
 
 -----------------------------------
 
-treeInsert :: Tree -> ([Word4], Item) -> Reader Storage (Tree, [Tree])
+treeInsert :: Tree -> ([Word4], Item) -> Reader MapStorage (Tree, [Tree])
 
 -- Empty
 treeInsert Empty (ik, iv) =

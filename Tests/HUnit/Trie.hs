@@ -1,11 +1,12 @@
-module Tests.HUnit.MMPTree(tests) where
+module Tests.HUnit.Trie(tests) where
 
 import Data.Array
 import Data.Binary
 import Data.Char
 import Data.Maybe
 import Data.Word.Odd
-import Ethereum.MMPTree.MMPTree
+import Ethereum.Storage.Trie
+import Ethereum.Storage.HashMap
 import qualified Data.ByteString.Lazy as L
 import Test.HUnit
 import Test.Framework
@@ -76,20 +77,21 @@ putAndGetTest pairs = testCase (show pairs) $ pairs @=? (putAndGet pairs)
 putAndGet :: [(String, String)] -> [(String, String)]
 putAndGet ps = getMany (putMany initialTree ps) (map fst ps)  
         
-putMany :: (Storage, TreeRef) -> [(String, String)] -> (Storage, TreeRef)
+putMany :: (MapStorage, TreeRef) -> [(String, String)] -> (MapStorage, TreeRef)
 putMany s ps =
         let ps' = map (\(k, v) -> (k, item $ map (fromIntegral.ord) v)) ps :: [(String, Item)]
         in foldr (flip insert) s (reverse ps')
 
-getMany :: (Storage, TreeRef) -> [String] -> [(String, String)]
+getMany :: (MapStorage, TreeRef) -> [String] -> [(String, String)]
 getMany s ks = mapMaybe (doLookup s) ks 
         where doLookup s' k =
-                do v <- Ethereum.MMPTree.MMPTree.lookup s' k
+                do v <- Ethereum.Storage.Trie.lookup s' k
                    let v' = map (chr.fromIntegral) $ unpackItem v
                    return (k, v')
                       
 -- TODO: Do this more exhaustively.
 -- TODO: Verify correctness of resulting trees.
+insert_tests ::  Test.Framework.Test
 insert_tests = testGroup "Insertion" [
         testGroup "InsertBranches" [
                 putAndGetTest [("a", "xyz")],

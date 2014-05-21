@@ -18,7 +18,7 @@ import Data.Binary.Get
 import Data.LargeWord
 import Ethereum.Common
 import Ethereum.Encoding.RLP
-import Ethereum.MMPTree.MMPTree
+import Ethereum.Storage.Trie
 import qualified Data.ByteString as B
 
 data Account = Account {
