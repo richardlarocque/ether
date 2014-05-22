@@ -7,6 +7,7 @@ import Data.Maybe
 import Data.Word.Odd
 import Ethereum.Storage.Trie
 import Ethereum.Storage.HashMap
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Test.HUnit
 import Test.Framework
@@ -18,10 +19,10 @@ roundTripTest :: (Show a, Eq a, Binary a) => a -> Test.Framework.Test
 roundTripTest x = testCase (show x) $ x @=? (decode.encode) x
 
 item :: [Word8] -> Item
-item = Embedded . L.pack
+item = I . L.pack
 
 unpackItem :: Item -> [Word8]
-unpackItem (Embedded e) = L.unpack e
+unpackItem (I e) = L.unpack e
 
 key :: String -> [Word4]
 key = nibbleize.(map (fromIntegral.ord))
@@ -82,10 +83,13 @@ putMany s ps =
         let ps' = map (\(k, v) -> (k, item $ map (fromIntegral.ord) v)) ps :: [(String, Item)]
         in foldr (flip insert) s (reverse ps')
 
+packStr :: String -> B.ByteString
+packStr = B.pack . map (fromIntegral . ord)
+
 getMany :: (MapStorage, TreeRef) -> [String] -> [(String, String)]
 getMany s ks = mapMaybe (doLookup s) ks 
         where doLookup s' k =
-                do v <- Ethereum.Storage.Trie.lookup s' k
+                do v <- Ethereum.Storage.Trie.lookup s' (packStr k)
                    let v' = map (chr.fromIntegral) $ unpackItem v
                    return (k, v')
                       

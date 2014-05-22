@@ -35,6 +35,7 @@ import Data.Maybe
 import Data.Word.Odd
 import qualified Data.List as DL
 import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as B
 import Ethereum.Common
 import Ethereum.Storage.HashMap
 import Ethereum.Encoding.HexPrefix
@@ -46,7 +47,7 @@ data Tree = Empty
           | Branch (Array Word4 TreeRef) (Maybe Item)
           deriving (Show, Eq)
 
-data Item = Embedded L.ByteString
+data Item = I L.ByteString
         deriving (Show, Eq)
 
 data TreeRef = Serialized L.ByteString
@@ -69,8 +70,8 @@ instance Binary TreeRef where
                       getSerialized = getSequenceBytes >>= return.Serialized
 
 instance Binary Item where
-        put (Embedded e) = putArray e
-        get = getArray >>= return.Embedded
+        put (I e) = putArray e
+        get = getArray >>= return.I
 
 instance Binary Tree where
         put (Empty) = error "Can't directly put empty tree"
@@ -152,9 +153,9 @@ insert (s, tr) (k, v) =
                 treeInsert t (k', v)
 
 -- | Looks up an item in the trie.
-lookup :: (MapStorage, TreeRef) -> String -> Maybe Item
+lookup :: (MapStorage, TreeRef) -> B.ByteString -> Maybe Item
 lookup (s, tr) k = runReader doLookup s
-        where doLookup = do let k' = nibbleize $ map (fromIntegral.ord) k
+        where doLookup = do let k' = nibbleize $ B.unpack k
                             deref tr >>= lookup' k'
 
 -- Helpers

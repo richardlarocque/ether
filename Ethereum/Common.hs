@@ -30,3 +30,4 @@ toLow = fromIntegral
 nibbleize :: [Word8] -> [Word4]
 nibbleize bs = map fromIntegral $ concatMap toNibbles bs
         where toNibbles b = [highNibble b, lowNibble b]
+

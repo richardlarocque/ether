@@ -27,7 +27,8 @@ module Ethereum.SimpleTypes (
         fromBytes,
         toBytes,
         emptyMemSlice,
-        memToByteString
+        memToByteString,
+        zeroAddress
 ) where
 
 import Data.Binary
@@ -93,3 +94,6 @@ emptyMemSlice = V.empty
 
 memToByteString :: ByteArray -> B.ByteString
 memToByteString = B.pack . V.toList
+
+zeroAddress :: Address
+zeroAddress = A 0

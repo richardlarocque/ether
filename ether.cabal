@@ -37,6 +37,8 @@ Library
       Ethereum.Encoding.RLP
       Ethereum.SimpleTypes
       Ethereum.State.Account
+      Ethereum.State.Address
+      Ethereum.State.Context
       Ethereum.State.Transaction
       Ethereum.Storage.HashMap
       Ethereum.Storage.Trie

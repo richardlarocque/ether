@@ -19,18 +19,20 @@ import Data.Binary.Get
 import Data.Binary.Put
 import Data.List
 import Data.LargeWord
+import Ethereum.SimpleTypes
 import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as B
 
-putArray ::  L.ByteString -> Put
+putArray ::  B.ByteString -> Put
 putArray bs = case bs of
-        _ | L.length bs == 1 && L.head bs < 128 -> putWord8 (L.head bs)
-        _ | L.length bs < 56 ->
-                do putWord8 (fromIntegral $ 128 + L.length bs)
-                   putLazyByteString bs
+        _ | B.length bs == 1 && B.head bs < 128 -> putWord8 (B.head bs)
+        _ | B.length bs < 56 ->
+                do putWord8 (fromIntegral $ 128 + B.length bs)
+                   putByteString bs
         _ ->
-                do putWord8 (fromIntegral $ 183 + (L.length (asBE $ L.length bs)))
-                   putLazyByteString (asBE $ L.length bs)
-                   putLazyByteString bs
+                do putWord8 (fromIntegral $ 183 + (B.length (asBE $ B.length bs)))
+                   putByteString (asBE $ B.length bs)
+                   putByteString bs
 
 getArrayHeader ::  Get Integer
 getArrayHeader = do
@@ -42,20 +44,23 @@ getArrayHeader = do
                         return $ (fromIntegral b) - 128
                 _  | b <= 192 -> do
                         skip 1
-                        ls <- getLazyByteString ((fromIntegral b) - 183)
+                        ls <- getByteString ((fromIntegral b) - 183)
                         len <- unBE ls
                         return len
                 _ -> fail "Not paresable as array"
 
-getArray ::  Get L.ByteString
+getArray ::  Get B.ByteString
 getArray = do len <- getArrayHeader
-              getLazyByteString (fromIntegral len)
+              getByteString (fromIntegral len)
 
 putScalar ::  Integer -> Put
 putScalar = (putArray . asBE)
 
 putScalar256 :: Word256 -> Put
 putScalar256 = putScalar . fromIntegral
+
+putAddress :: Address -> Put
+putAddress = putScalar . fromIntegral . fromAddress
 
 getScalar ::  Get Integer
 getScalar = do getArray >>= unBE
@@ -67,16 +72,16 @@ putSequenceHeader :: Integral a => a -> Put
 putSequenceHeader len =
         do if len < 56
               then putWord8 (fromIntegral $ 192 + len)
-              else do putWord8 (fromIntegral $ 247 + (L.length (asBE $ len)))
-                      putLazyByteString (asBE $ len)
+              else do putWord8 (fromIntegral $ 247 + (B.length (asBE $ len)))
+                      putByteString (asBE $ len)
 
-putSequenceBytes :: L.ByteString -> Put
+putSequenceBytes :: B.ByteString -> Put
 putSequenceBytes lb =
-        do putSequenceHeader (L.length lb)
-           putLazyByteString lb
+        do putSequenceHeader (B.length lb)
+           putByteString lb
 
 putSequence ::  Put -> Put
-putSequence p1 = putSequenceBytes (runPut p1)
+putSequence p1 = putSequenceBytes $ L.toStrict $ (runPut p1)
 
 getSequence :: Get a -> Get a
 getSequence g1 =
@@ -88,24 +93,24 @@ getSequenceHeader =
         do b <- get :: Get Word8
            if b <= 247
               then return $ (fromIntegral b) - 192
-              else do ls <- getLazyByteString ((fromIntegral b) - 247)
+              else do ls <- getByteString ((fromIntegral b) - 247)
                       len <- unBE ls
                       return $ fromIntegral len
 
-getSequenceBytes :: Get L.ByteString
-getSequenceBytes = getSequence getRemainingLazyByteString
+getSequenceBytes :: Get B.ByteString
+getSequenceBytes = (liftM L.toStrict) $ getSequence getRemainingLazyByteString
 
 getWord8s :: Integral a => a -> Get [Word8]
 getWord8s x = replicateM (fromIntegral x) get
 
-asBE :: Integral a => a -> L.ByteString
-asBE = L.pack . reverse . (unfoldr (\v ->
+asBE :: Integral a => a -> B.ByteString
+asBE = B.pack . reverse . (unfoldr (\v ->
         if v == 0
            then Nothing
            else Just (fromIntegral $ v `mod` 256, v `div` 256)))
 
-unBE :: Monad m => L.ByteString -> m Integer
+unBE :: Monad m => B.ByteString -> m Integer
 unBE bs = case bs of
-        _ | L.length bs == 0 -> return 0
-        _ | L.head bs == 0 -> fail "Unexpected leading zero(es)"
-        _ -> return $ L.foldl' (\x y -> x * 256 + (fromIntegral y)) 0 bs
+        _ | B.length bs == 0 -> return 0
+        _ | B.head bs == 0 -> fail "Unexpected leading zero(es)"
+        _ -> return $ B.foldl' (\x y -> x * 256 + (fromIntegral y)) 0 bs
