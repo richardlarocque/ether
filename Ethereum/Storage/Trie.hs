@@ -47,10 +47,10 @@ data Tree = Empty
           | Branch (Array Word4 TreeRef) (Maybe Item)
           deriving (Show, Eq)
 
-data Item = I L.ByteString
+data Item = I B.ByteString
         deriving (Show, Eq)
 
-data TreeRef = Serialized L.ByteString
+data TreeRef = Serialized B.ByteString
              | TreeHash Word256 
              deriving (Show, Eq)
 
@@ -96,7 +96,7 @@ tref :: Tree -> TreeRef
 tref Empty = TreeHash 0
 tref t     = let serialized = encode t
                   in if L.length serialized < 32
-                        then Serialized serialized
+                        then Serialized (L.toStrict serialized)
                         else TreeHash $ hashLazyBytes serialized
 
 deref :: TreeRef -> Reader MapStorage Tree
@@ -107,7 +107,7 @@ deref tr =
                         s <- ask
                         let bs = fromMaybe (error "lookup failed") (load h s) 
                         return $ runGet get bs
-                Serialized bs -> return $ runGet get bs
+                Serialized bs -> return $ runGet get (L.fromStrict bs)
 
 -----
 

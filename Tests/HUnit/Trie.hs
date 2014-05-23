@@ -19,10 +19,10 @@ roundTripTest :: (Show a, Eq a, Binary a) => a -> Test.Framework.Test
 roundTripTest x = testCase (show x) $ x @=? (decode.encode) x
 
 item :: [Word8] -> Item
-item = I . L.pack
+item = I . B.pack
 
 unpackItem :: Item -> [Word8]
-unpackItem (I e) = L.unpack e
+unpackItem (I e) = B.unpack e
 
 key :: String -> [Word4]
 key = nibbleize.(map (fromIntegral.ord))
@@ -34,7 +34,7 @@ fullBranchArray1 :: Array Word4 TreeRef
 fullBranchArray1 = listArray (0,15) (map TreeHash [0..16])
 
 fullBranchArray2 :: Array Word4 TreeRef
-fullBranchArray2 = listArray (0,15) (map (Serialized . L.singleton) [0..16])
+fullBranchArray2 = listArray (0,15) (map (Serialized . B.singleton) [0..16])
 
 serialize_tests :: Test.Framework.Test
 serialize_tests = testGroup "Serialization" [
@@ -45,10 +45,10 @@ serialize_tests = testGroup "Serialization" [
                 roundTripTest $ item [0..128]
                 ],
         testGroup "TreeRef" [
-                roundTripTest $ Serialized (L.pack []),
-                roundTripTest $ Serialized (L.pack [1]),
-                roundTripTest $ Serialized (L.pack [128]),
-                roundTripTest $ Serialized (L.pack [0..128]),
+                roundTripTest $ Serialized (B.pack []),
+                roundTripTest $ Serialized (B.pack [1]),
+                roundTripTest $ Serialized (B.pack [128]),
+                roundTripTest $ Serialized (B.pack [0..128]),
                 roundTripTest $ TreeHash 1234
                 ],
         testGroup "Tree Leaf" [
@@ -61,7 +61,7 @@ serialize_tests = testGroup "Serialization" [
                 roundTripTest $ Extension (key "abc") (TreeHash 10),
                 roundTripTest $ Extension (key "\x0f") (TreeHash 456),
                 roundTripTest $ Extension (key "\xff") (TreeHash 123),
-                roundTripTest $ Extension (key "zxy") (Serialized $ L.pack [128])
+                roundTripTest $ Extension (key "zxy") (Serialized $ B.pack [128])
                 ],
         testGroup "Tree Branch" [
                 roundTripTest $ Branch nullBranchArray Nothing,

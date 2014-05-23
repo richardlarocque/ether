@@ -10,13 +10,14 @@ import Ethereum.Encoding.RLP
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 
 roundTripTest :: (Show a, Eq a) => (a -> L.ByteString) -> (L.ByteString -> a) -> a -> Test.Framework.Test
 roundTripTest e d x = testCase (show x) $ x @=? (d.e) x
 
 roundTripTestArray :: [Word8] -> Test.Framework.Test
-roundTripTestArray = roundTripTest (\x -> runPut $ putArray (L.pack x)) (L.unpack.(runGet $ getArray))
+roundTripTestArray = roundTripTest (\x -> runPut $ putArray (B.pack x)) (B.unpack.(runGet $ getArray))
 
 roundTripTestScalar :: Integer -> Test.Framework.Test
 roundTripTestScalar = roundTripTest (\x -> runPut $ putScalar x) (runGet $ getScalar)
@@ -37,14 +38,14 @@ instance Binary Seq1 where
         put (Seq1 s1 s2 b3 s4) = putSequence $ do 
                 putScalar256 s1
                 putScalar256 s2
-                putArray (L.pack b3)
+                putArray (B.pack b3)
                 putScalar256 s4
         get = getSequence $ do
                 s1 <- getScalar
                 s2 <- getScalar
                 b3 <- getArray
                 s4 <- getScalar
-                return $ Seq1 (fromIntegral s1) (fromIntegral s2) (L.unpack b3) (fromIntegral s4)
+                return $ Seq1 (fromIntegral s1) (fromIntegral s2) (B.unpack b3) (fromIntegral s4)
 
 -- TODO: These should be augmented with quickcheck tests.
 tests :: [Test.Framework.Test]

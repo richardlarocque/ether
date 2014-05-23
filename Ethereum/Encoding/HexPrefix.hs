@@ -19,6 +19,7 @@ import Data.Binary.Put
 import Data.Bits
 import Data.Word.Odd
 import Ethereum.Encoding.RLP
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 
 import Ethereum.Common
@@ -29,7 +30,7 @@ data HPArray = HPArray [Word4] Bool
 putHexPrefix :: [Word4] -> Bool -> Put
 putHexPrefix ns f =
         let bs = runPut (putHexPrefixBytes ns f)
-        in putArray bs
+        in putArray (L.toStrict bs)
 
 getHexPrefix :: Bool -> Get [Word4]
 getHexPrefix f = do
