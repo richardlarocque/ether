@@ -6,13 +6,15 @@ import qualified Tests.HUnit.EVM as EVM
 import qualified Tests.HUnit.RLP as RLP
 import qualified Tests.HUnit.HexPrefix as HexPrefix
 import qualified Tests.HUnit.Trie as Trie
+import qualified Tests.HUnit.Transaction as Transaction
 
 tests :: [Test.Framework.Test]
 tests = [
         testGroup "EVM" EVM.tests,
         testGroup "RLP" RLP.tests,
         testGroup "HexPrefix" HexPrefix.tests,
-        testGroup "Trie" Trie.tests
+        testGroup "Trie" Trie.tests,
+        testGroup "Transaction" Transaction.tests
         ]
 
 main ::  IO ()

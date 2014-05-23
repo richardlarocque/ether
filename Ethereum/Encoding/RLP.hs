@@ -60,7 +60,10 @@ putScalar256 :: Word256 -> Put
 putScalar256 = putScalar . fromIntegral
 
 putAddress :: Address -> Put
-putAddress = putScalar . fromIntegral . fromAddress
+putAddress = putScalar . fromAddress
+
+getAddress :: Get Address
+getAddress = getScalar >>= return . A . fromIntegral
 
 getScalar ::  Get Integer
 getScalar = do getArray >>= unBE

@@ -4,8 +4,6 @@
 -- Word size of '\blackboard{P}' or scalars is not really specified, though
    it is often implicitly limited.  RLP serialization seems to limit it at
    around 2^80...
--- Section 4.2: Was that meant to be T_v, T_r, T_s?
-   -> Appending F also seems to have some confusion about T_v <=> T_w
 -- Equation (42) confuses me.  What's this part about taking only two parameters?
    What are the types of inputs and outputs?  Why does S(T) (transaction sender)
    seem to map to g', which is presumably a gas value?

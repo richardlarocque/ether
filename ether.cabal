@@ -32,12 +32,12 @@ Library
   exposed-modules:
       Ethereum.Common
       Ethereum.EVM.ExecutionEnvironment
-      Ethereum.EVM.FeeSchedule
       Ethereum.EVM.InstructionSet
       Ethereum.EVM.MachineState
       Ethereum.EVM.VM
       Ethereum.Encoding.HexPrefix
       Ethereum.Encoding.RLP
+      Ethereum.FeeSchedule
       Ethereum.SimpleTypes
       Ethereum.State.Account
       Ethereum.State.Address
@@ -71,9 +71,10 @@ Test-suite ether_tests
   ghc-options:         -O2 -Wall
 
   other-modules:
-      Tests.HUnit.RLP,
       Tests.HUnit.EVM,
       Tests.HUnit.HexPrefix,
+      Tests.HUnit.RLP,
+      Tests.HUnit.Transaction,
       Tests.HUnit.Trie
 
   build-depends:

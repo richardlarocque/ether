@@ -1,5 +1,5 @@
 {- |
-Module      :  Ethereum.EVM.FeeSchedule
+Module      :  Ethereum.FeeSchedule
 Description :  Fee schedule declarations for Ethereum
 Copyright   :  (c) Richard Larocque
 License     :  GPL-3.0+
@@ -11,13 +11,11 @@ Portability :  non-portable (Unknown portability)
 Translation of Ethereum Yellow Paper, Proof-of-Concept V, Section 9.3
 -}
 
-module Ethereum.EVM.FeeSchedule where
-
-import Ethereum.SimpleTypes
+module Ethereum.FeeSchedule where
 
 -- Appendix B: Fee schedule
-step, stop, suicide, sha3, sload, sstore, balance, create, call :: Gas
-memory, txdata, transaction :: Gas
+step, stop, suicide, sha3, sload, sstore, balance, create, call :: Integer
+memory, txdata, transaction :: Integer
 
 step = 0
 stop = 1

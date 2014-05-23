@@ -8,7 +8,6 @@ import Crypto.Hash
 import Crypto.PubKey.ECC.ECDSA
 import Crypto.Random
 import Crypto.Types.PubKey.ECC
-import Crypto.Types.PubKey.ECDSA
 import Data.Binary
 import Data.Binary.Put
 import Data.Binary.Get
@@ -22,11 +21,13 @@ import qualified Data.ByteString.Lazy as L
 
 -- FIXME: This is completely wrong.
 data TSignature = TSignature B.ByteString Integer Integer
+                | NonSig
 
 putSignature :: TSignature -> Put
 putSignature (TSignature pub r s) = do putArray pub
                                        putScalar r
                                        putScalar s
+putSignature (NonSig) = putScalar 0
 
 curve :: Curve
 curve = getCurveByName SEC_p256k1
@@ -35,10 +36,10 @@ hashBytesToBytes :: B.ByteString -> B.ByteString
 hashBytesToBytes bs = Data.Byteable.toBytes (hash bs :: Digest SHA3_256)
 
 makePrivateKey :: Word256 -> PrivateKey
-makePrivateKey i = toPrivateKey $ KeyPair curve PointO (fromIntegral i)
+makePrivateKey i = toPrivateKey $ KeyPair curve (Point 1 2) (fromIntegral i)
 
 privToPublic :: PrivateKey -> PublicKey
-privToPublic PrivateKey{private_curve=c, private_d=d} = toPublicKey $ KeyPair c PointO d
+privToPublic PrivateKey{private_curve=c, private_d=d} = toPublicKey $ KeyPair c (Point 1 2) d
 
 publicToBytes :: PublicKey -> B.ByteString
 publicToBytes PublicKey { public_q=(Point a b) } =
