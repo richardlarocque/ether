@@ -32,13 +32,13 @@ execute :: ExecutionEnvironment -> Either RunTimeError MemSlice
 execute ee = execNext ee (initialState ee)
 
 execNext :: ExecutionEnvironment -> MachineState -> Either RunTimeError MemSlice
-execNext ee ms = do
+execNext ee ms =
         case getOp ee ms of
                 Nothing         -> Left InvalidInstruction
                 Just STOP       -> Right emptyMemSlice
                 Just SUICIDE    -> Right emptyMemSlice
                 Just RETURN     -> do (ms', (start, len)) <- popTwo ms
-                                      return $ snd $ (mloadrange start len ms')
+                                      return $ snd $ mloadrange start len ms'
                 Just w          -> step w ee ms
 
 step :: Instruction -> ExecutionEnvironment -> MachineState -> Either RunTimeError MemSlice
@@ -48,9 +48,9 @@ step w ee ms = do ms' <- execOp w ee ms
                   execNext ee ms''
 
 gasCheck :: MachineState -> Either RunTimeError ()
-gasCheck ms = case outOfGas ms of
-        True -> Left OutOfGas
-        False -> Right ()
+gasCheck ms = if outOfGas ms
+                 then Left OutOfGas
+                 else Right ()
 
 updatePC :: Instruction -> MachineState -> Either RunTimeError MachineState
 updatePC w = case w of
@@ -68,9 +68,9 @@ execOp w ee = case w of
         ADD     -> stackBinOp (+)
         MUL     -> stackBinOp (*)
         SUB     -> stackBinOp (-)
-        DIV     -> stackBinOp (safeDiv)
+        DIV     -> stackBinOp safeDiv
         SDIV    -> stackBinOp (withSign safeDiv)
-        MOD     -> stackBinOp (mod)
+        MOD     -> stackBinOp mod
         SMOD    -> stackBinOp (withSign mod)
         EXP     -> stackBinOp (^)
         NEG     -> stackUnOp ((1+).complement)
@@ -79,10 +79,10 @@ execOp w ee = case w of
         SLT     -> stackBinOp (unbool2 (\a b -> (a - b) `testBit` 255))
         SGT     -> stackBinOp (unbool2 (\a b -> (b - a) `testBit` 255))
         E.EQ    -> stackBinOp (unbool2 (==))
-        NOT     -> stackUnOp ((unbool2 (==)) 0)
+        NOT     -> stackUnOp (unbool2 (==) 0)
         AND     -> stackBinOp (.&.)
         OR      -> stackBinOp (.|.)
-        XOR     -> stackBinOp (xor)
+        XOR     -> stackBinOp xor
         BYTE    -> stackBinOp (\a b -> fromIntegral $ byteIndex a b)
 
         {- 20s: SHA3 -}
@@ -118,9 +118,9 @@ execOp w ee = case w of
         GASLIMIT        -> error "not implemented"
 
         {- 50s: Stack, Memory, Storage and Flow Operations -}
-        POP             -> ((liftM fst).pop)
-        DUP             -> withArg (\x -> (push x).(push x))
-        SWAP            -> withTwoArgs (\a b -> (push b).(push a))
+        POP             -> (liftM fst.pop)
+        DUP             -> withArg (\x -> push x . push x )
+        SWAP            -> withTwoArgs (\a b -> push b . push a )
         MLOAD           -> withArg (\x ms' -> let (ms'', v) = mload x ms' in push v ms'')
         MSTORE          -> withTwoArgs mstore
         MSTORE8         -> withTwoArgs (\a v -> mstorerange a (V.fromList [byteIndex 31 v]))
@@ -177,7 +177,7 @@ safeDiv _ 0 = 0
 safeDiv a b = a `div` b
 
 unbool2 ::  (Word256 -> Word256 -> Bool) -> Word256 -> Word256 -> Word256
-unbool2 f =  (\a b -> if (f a b) then 1 else 0)
+unbool2 f a b =  if f a b then 1 else 0
 
 byteIndex ::  Word256 -> Word256 -> Word8
 byteIndex i w = if i < 32
@@ -186,50 +186,52 @@ byteIndex i w = if i < 32
 
 -- Check the sign bit
 isNeg ::  Word256 -> Bool
-isNeg = (flip testBit) 255
+isNeg = flip testBit 255
 
 -- Two's complement
 neg ::  Word256 -> Word256
 neg = (1+).complement
 
 -- Adding signs to div and mod
-withSign ::  (Word256 -> Word256 -> Word256) -> (Word256 -> Word256 -> Word256)
-withSign f = (\a b -> let (aNeg, a') = unsign a
-                          (bNeg, b') = unsign b
-                      in resign aNeg bNeg $ f a' b')
-                      where unsign x = if isNeg x then (True, neg x) else (False, x)
-                            resign s1 s2 x = if s1 `xor` s2 then neg x else x
+withSign ::  (Word256 -> Word256 -> Word256) -> Word256 -> Word256 -> Word256
+withSign f a b = let (aNeg, a') = unsign a
+                     (bNeg, b') = unsign b
+                 in resign aNeg bNeg $ f a' b'
+                    where unsign x = if isNeg x
+                                        then (True, neg x)
+                                        else (False, x)
+                          resign s1 s2 x = if s1 `xor` s2 then neg x else x
 
 extractByte :: (Integral b) => Word256 -> Word256 -> b
-extractByte b i = fromIntegral $ (encode b) `BL.index` (fromIntegral i)
+extractByte b i = fromIntegral $ encode b `BL.index` fromIntegral i
 
-noArgs :: (MachineState -> MachineState) -> (MachineState -> Either RunTimeError MachineState)
+noArgs :: (MachineState -> MachineState) -> MachineState -> Either RunTimeError MachineState
 noArgs f = return.f
 
 withArg :: (Word256 -> MachineState -> MachineState) ->
-        (MachineState -> Either RunTimeError MachineState)
+        MachineState -> Either RunTimeError MachineState
 withArg f ms = do (ms', arg) <- pop ms
                   return $ f arg ms'
 
 withTwoArgs :: (Word256 -> Word256 -> MachineState -> MachineState) ->
-        (MachineState -> Either RunTimeError MachineState)
+        MachineState -> Either RunTimeError MachineState
 withTwoArgs f ms = do (ms', (arg1, arg2)) <- popTwo ms
                       return $ f arg1 arg2 ms'
 
 withThreeArgs :: (Word256 -> Word256 -> Word256 -> MachineState -> MachineState) ->
-        (MachineState -> Either RunTimeError MachineState)
+        MachineState -> Either RunTimeError MachineState
 withThreeArgs f ms = do (ms', (arg1, arg2, arg3)) <- popThree ms
                         return $ f arg1 arg2 arg3 ms'
 
 stackBinOp :: (Word256 -> Word256 -> Word256) ->
         MachineState -> Either RunTimeError MachineState
-stackBinOp f ms = withTwoArgs (\a b -> push (f a b)) ms 
+stackBinOp f = withTwoArgs (\a b -> push (f a b))
 
 stackUnOp :: (Word256 -> Word256) -> MachineState -> Either RunTimeError MachineState
-stackUnOp f ms = withArg (\a -> push (f a)) ms
+stackUnOp f = withArg (push . f)
 
 pushOp :: Word256 -> ExecutionEnvironment -> MachineState -> Either RunTimeError MachineState
 pushOp l _ _ | l > 32 = error "Invalid push length argument"
-pushOp l ee ms = let s = fromIntegral $ (pc ms) + 1
+pushOp l ee ms = let s = fromIntegral $ pc ms + 1
                      v = fromBytes $ crange (s, l) ee
-                 in return $ ((addPC l) . (push v)) ms
+                 in return $ (addPC l . push v) ms
