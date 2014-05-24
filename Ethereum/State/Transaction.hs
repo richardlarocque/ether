@@ -110,10 +110,8 @@ isSignatureValid (CC c cc tsig) =
         in verifyTSig hashable tsig
 
 isGasValid :: Transaction -> Bool
-isGasValid t@(CC (TCommon _ _ _ gl) _ _) =
-        intrinsicGas t > gl
-isGasValid t@(MC (TCommon _ _ _ gl) _ _) =
-        intrinsicGas t > gl
+isGasValid t@(CC (TCommon _ _ _ gl) _ _) = intrinsicGas t < gl
+isGasValid t@(MC (TCommon _ _ _ gl) _ _) = intrinsicGas t < gl
 
 -- Equation (36)
 intrinsicGas :: Transaction -> Integer
@@ -124,9 +122,17 @@ intrinsicGas (MC _ (MessageCall _ dat) _) =
 
 -- Equation (37)
 upFrontConst :: Transaction -> Integer
-upFrontConst t@(CC (TCommon _ v gp gl) _ _)  =
-        gp * gl + v
-upFrontConst t@(MC (TCommon _ v gp gl) _ _)  =
-        gp * gl + v
+upFrontConst (CC (TCommon _ v gp gl) _ _)  = gp * gl + v
+upFrontConst (MC (TCommon _ v gp gl) _ _)  = gp * gl + v
 
 -- sender :: MapStorage -> Transaction -> Account
+
+{-
+-- Section 6
+isTransactionValid :: Context -> Transaction -> Bool
+isTransactionValid c t = and [
+        isSignatureValid t,
+        -- isNonceValid c t,
+        isGasValid t
+        -- isBalanceAvailable c t ]
+        -- -}

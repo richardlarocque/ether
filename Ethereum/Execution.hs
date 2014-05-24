@@ -3,13 +3,6 @@ module Ethereum.Execution where
 import Ethereum.State.Transaction
 import Ethereum.State.Context
 
--- Section 6
-isTransactionValid :: Context -> Transaction -> Bool
-isTransactionValid c t = and [
-        isSignatureValid t,
-        isNonceValid c t,
-        isGasValid t,
-        isBalanceAvailable c t ]
 
 isSignatureValid :: Transaction -> Bool
 isSignatureValid _ = True -- FIXME: implement this.
