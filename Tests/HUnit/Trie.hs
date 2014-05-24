@@ -5,6 +5,7 @@ import Data.Binary
 import Data.Char
 import Data.Maybe
 import Data.Word.Odd
+import Ethereum.Common
 import Ethereum.Storage.Trie
 import Ethereum.Storage.HashMap
 import Ethereum.Storage.Context
@@ -13,8 +14,6 @@ import qualified Data.ByteString.Lazy as L
 import Test.HUnit
 import Test.Framework
 import Test.Framework.Providers.HUnit
-
-import Ethereum.Common
 
 roundTripTest :: (Show a, Eq a, Binary a) => a -> Test.Framework.Test
 roundTripTest x = testCase (show x) $ x @=? (decode.encode) x

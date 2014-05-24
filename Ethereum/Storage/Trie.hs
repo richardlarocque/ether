@@ -69,14 +69,14 @@ instance Binary Tree where
         put (Empty) = error "Can't directly put empty tree"
         put (Leaf ns i) = putSequence $ do
                 putHexPrefix ns True
-                put i
+                putArray i
         put (Extension ns tr) = putSequence $ do
                 putHexPrefix ns False
                 put tr
         put (Branch ts mi) = putSequence $ do
                 mapM_ put $ elems ts
                 case mi of
-                        Just i -> put i
+                        Just i -> putArray i
                         Nothing -> return ()
 
         get = do len <- getSequenceHeader
@@ -113,7 +113,7 @@ emptyBranch = Branch (listArray (0,15) (replicate 16 zeroRef)) Nothing
 
 getLeaf :: Get Tree
 getLeaf = do ns <- getHexPrefix True
-             i <- get
+             i <- getArray
              return $ Leaf ns i
 
 getExtension :: Get Tree
