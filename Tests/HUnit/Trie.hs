@@ -7,6 +7,7 @@ import Data.Maybe
 import Data.Word.Odd
 import Ethereum.Storage.Trie
 import Ethereum.Storage.HashMap
+import Ethereum.Storage.Context
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Test.HUnit
@@ -18,11 +19,11 @@ import Ethereum.Common
 roundTripTest :: (Show a, Eq a, Binary a) => a -> Test.Framework.Test
 roundTripTest x = testCase (show x) $ x @=? (decode.encode) x
 
-item :: [Word8] -> Item
-item = I . B.pack
+item :: [Word8] -> B.ByteString
+item = B.pack
 
-unpackItem :: Item -> [Word8]
-unpackItem (I e) = B.unpack e
+unpackItem :: B.ByteString -> [Word8]
+unpackItem = B.unpack
 
 key :: String -> [Word4]
 key = nibbleize.(map (fromIntegral.ord))
@@ -72,27 +73,23 @@ serialize_tests = testGroup "Serialization" [
                 ]
         ]
 
+toBS :: String -> B.ByteString
+toBS = B.pack . map (fromIntegral . ord)
+
 putAndGetTest :: [(String, String)] -> Test.Framework.Test
-putAndGetTest pairs = testCase (show pairs) $ pairs @=? (putAndGet pairs)
+putAndGetTest pairs =
+        let pairs' = map (\(a,b) -> (toBS a, toBS b)) pairs in
+        testCase (show pairs) $ pairs' @=? (putAndGet pairs')
 
-putAndGet :: [(String, String)] -> [(String, String)]
-putAndGet ps = getMany (putMany initialTree ps) (map fst ps)  
+putAndGet :: [(B.ByteString, B.ByteString)] -> [(B.ByteString, B.ByteString)]
+putAndGet ps = getMany (putMany initContext ps) (map fst ps)  
         
-putMany :: (MapStorage, TreeRef) -> [(String, String)] -> (MapStorage, TreeRef)
-putMany s ps =
-        let ps' = map (\(k, v) -> (k, item $ map (fromIntegral.ord) v)) ps :: [(String, Item)]
-        in foldr (flip insert) s (reverse ps')
+putMany :: Context -> [(B.ByteString, B.ByteString)] -> Context
+putMany s ps = foldr (flip insertToTrie) s (reverse ps)
 
-packStr :: String -> B.ByteString
-packStr = B.pack . map (fromIntegral . ord)
+getMany :: Context -> [B.ByteString] -> [(B.ByteString, B.ByteString)]
+getMany s ks = mapMaybe (\k -> lookupInTrie s k >>= \v -> return (k, v)) ks
 
-getMany :: (MapStorage, TreeRef) -> [String] -> [(String, String)]
-getMany s ks = mapMaybe (doLookup s) ks 
-        where doLookup s' k =
-                do v <- Ethereum.Storage.Trie.lookup s' (packStr k)
-                   let v' = map (chr.fromIntegral) $ unpackItem v
-                   return (k, v')
-                      
 -- TODO: Do this more exhaustively.
 -- TODO: Verify correctness of resulting trees.
 insert_tests ::  Test.Framework.Test

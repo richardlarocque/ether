@@ -14,11 +14,11 @@ Translation of Ethereum Yellow Paper, Proof-of-Concept V, Appendix D
 -}
 
 module Ethereum.Storage.Trie(
-        Item(..),
         TreeRef(..),
         Tree(..),
-        initialTree,
+        zeroRef,
         insert,
+        storeTree,
         Ethereum.Storage.Trie.lookup) where
 
 -- TODO: Many of those exports are meant only for tests...
@@ -26,7 +26,6 @@ module Ethereum.Storage.Trie(
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Reader
-import Data.Char
 import Data.Array
 import Data.Binary
 import Data.Binary.Get
@@ -42,13 +41,10 @@ import Ethereum.Encoding.HexPrefix
 import Ethereum.Encoding.RLP
 
 data Tree = Empty
-          | Leaf [Word4] Item
+          | Leaf [Word4] B.ByteString
           | Extension [Word4] TreeRef
-          | Branch (Array Word4 TreeRef) (Maybe Item)
+          | Branch (Array Word4 TreeRef) (Maybe B.ByteString)
           deriving (Show, Eq)
-
-data Item = I B.ByteString
-        deriving (Show, Eq)
 
 data TreeRef = Serialized B.ByteString
              | TreeHash Word256 
@@ -68,10 +64,6 @@ instance Binary TreeRef where
         get = getHash <|> getSerialized
                 where getHash = getScalar256 >>= return.TreeHash
                       getSerialized = getSequenceBytes >>= return.Serialized
-
-instance Binary Item where
-        put (I e) = putArray e
-        get = getArray >>= return.I
 
 instance Binary Tree where
         put (Empty) = error "Can't directly put empty tree"
@@ -117,9 +109,6 @@ zeroRef = TreeHash 0
 emptyBranch :: Tree
 emptyBranch = Branch (listArray (0,15) (replicate 16 zeroRef)) Nothing
 
-initialTree :: (MapStorage, TreeRef)
-initialTree = (emptyMapStorage, zeroRef)
-
 -----
 
 getLeaf :: Get Tree
@@ -137,37 +126,29 @@ getBranch = do
         trs <- replicateM 16 (get :: Get TreeRef)
         done <- isEmpty
         mi <- if not done
-           then (get :: Get Item) >>= return.Just
+           then getArray >>= return.Just
            else return Nothing
         return $ Branch (listArray (0,15) trs) mi
 
-----
 
--- | Inserts an item into the trie.
-insert :: (MapStorage, TreeRef) -> (String, Item) -> (MapStorage, TreeRef)
-insert (s, tr) (k, v) =
-        let (r', ns) = runReader doInsert s in (s `updateStorage` ns, tref r')
-        where doInsert = do
-                let k' = nibbleize $ map (fromIntegral.ord) k
-                t <- deref tr
-                treeInsert t (k', v)
+insert :: TreeRef -> (B.ByteString, B.ByteString) -> Reader MapStorage (TreeRef, [Tree])
+insert tr (k, v) = do t <- deref tr
+                      (tr', nodes) <- treeInsert t (nibbleize $ B.unpack k, v)
+                      return (tref tr', nodes)
 
--- | Looks up an item in the trie.
-lookup :: (MapStorage, TreeRef) -> B.ByteString -> Maybe Item
-lookup (s, tr) k = runReader doLookup s
-        where doLookup = do let k' = nibbleize $ B.unpack k
-                            deref tr >>= lookup' k'
+lookup :: TreeRef -> B.ByteString -> Reader MapStorage (Maybe B.ByteString)
+lookup tr k = do t <- deref tr
+                 lookup' (nibbleize $ B.unpack k) t
+
+storeTree :: MapStorage -> Tree -> MapStorage
+storeTree s t = case tref t of
+        TreeHash 0 -> s
+        TreeHash k -> store k (encode t) s
+        _ -> s
 
 -- Helpers
 
-updateStorage :: MapStorage -> [Tree] -> MapStorage
-updateStorage s ts = foldr addToStorage s ts
-        where addToStorage t s1 = case tref t of
-                TreeHash 0 -> s1
-                TreeHash k -> store k (encode t) s1
-                _ -> s1
-
-lookup' :: [Word4] -> Tree -> Reader MapStorage (Maybe Item)
+lookup' :: [Word4] -> Tree -> Reader MapStorage (Maybe B.ByteString)
 lookup' ns tree = case tree of
         Empty                   -> return Nothing
 
@@ -186,7 +167,7 @@ lookup' ns tree = case tree of
 
 -----------------------------------
 
-treeInsert :: Tree -> ([Word4], Item) -> Reader MapStorage (Tree, [Tree])
+treeInsert :: Tree -> ([Word4], B.ByteString) -> Reader MapStorage (Tree, [Tree])
 
 -- Empty
 treeInsert Empty (ik, iv) =
