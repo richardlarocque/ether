@@ -4,6 +4,8 @@ module Ethereum.Crypto where
 -- libraries I'm using and random number generators they rely on probably
 -- weren't written by cryptographers either.  Do not trust this.
 
+import Control.Applicative
+import Control.Monad
 import Crypto.Hash
 import Crypto.PubKey.ECC.ECDSA
 import Crypto.Random
@@ -22,12 +24,23 @@ import qualified Data.ByteString.Lazy as L
 -- FIXME: This is completely wrong.
 data TSignature = TSignature B.ByteString Integer Integer
                 | NonSig
+                deriving (Show, Eq)
 
 putSignature :: TSignature -> Put
 putSignature (TSignature pub r s) = do putArray pub
                                        putScalar r
                                        putScalar s
 putSignature (NonSig) = putScalar 0
+
+getSignature :: Get TSignature
+getSignature = getNoSig <|> getTSig
+        where getNoSig = do v <- getScalar
+                            unless (v == 0) (fail "not a NonSig")
+                            return NonSig
+              getTSig = do pub <- getArray
+                           r <- getScalar
+                           s <- getScalar
+                           return $ TSignature pub r s
 
 curve :: Curve
 curve = getCurveByName SEC_p256k1

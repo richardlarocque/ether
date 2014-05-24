@@ -27,9 +27,11 @@ data Account = Account {
         stateRoot :: TreeRef,
         codeHash :: CodeHash
         }
+        deriving Show
 
 data CodeHash = CodeHash Word256
               | NullCodeHash
+              deriving Show
 
 emptyHash :: Word256
 emptyHash = hashBytes B.empty

@@ -13,34 +13,45 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 4.1
 
 module Ethereum.State.Transaction where
 
+import Control.Applicative
+import Control.Monad
 import Crypto.Random
 import Data.Binary
+import Data.Binary.Get
 import Data.Binary.Put
 import Data.LargeWord
 import Ethereum.Crypto
 import Ethereum.Common
 import Ethereum.SimpleTypes
 import Ethereum.Encoding.RLP
+import qualified Ethereum.State.Account as A
 import qualified Ethereum.FeeSchedule as F
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 
 data Transaction = CC TCommon ContractCreation TSignature
                  | MC TCommon MessageCall TSignature
+                 deriving (Show, Eq)
 
-data TCommon = TCommon {
-        nonce :: Integer,
-        value :: Integer,
-        gasPrice :: Integer,
-        gasLimit :: Integer
-}
+data TCommon = TCommon
+        Integer -- n
+        Integer -- v
+        Integer -- gp
+        Integer -- gl
+        deriving (Show, Eq)
 
 data ContractCreation = ContractCreation B.ByteString
+        deriving (Show, Eq)
 
 data MessageCall = MessageCall Address B.ByteString
+        deriving (Show, Eq)
+
+nonce :: Transaction -> Integer
+nonce (CC (TCommon n _ _ _) _ _) = n
+nonce (MC (TCommon n _ _ _) _ _) = n
 
 putCommon :: TCommon -> Put
-putCommon TCommon { nonce=n, value=v, gasPrice=gp, gasLimit=gl } =
+putCommon (TCommon n v gp gl) =
         do putScalar n   -- T_n
            putScalar v   -- T_v
            putScalar gp  -- T_p
@@ -66,13 +77,39 @@ getCommon = do
         return $ TCommon n v gp gl
 
 getContractCreation :: Get ContractCreation
-getContractCreation = getArray >>= return.ContractCreation
+getContractCreation = do
+        to <- getAddress
+        unless (to == zeroAddress) (fail "CC with non-zero to address")
+        getArray >>= return.ContractCreation
 
 getMessageCall :: Get MessageCall
 getMessageCall = do
         to <- getAddress
         dat <- getArray
         return $ MessageCall to dat
+
+putTransaction :: Transaction -> Put
+putTransaction (CC tc cc ts) = putSequence $
+        do putCommon tc
+           putContractCreation cc
+           putSignature ts
+putTransaction (MC tc mc ts) = putSequence $
+        do putCommon tc
+           putMessageCall mc
+           putSignature ts
+
+getTransaction :: Get Transaction
+getTransaction =
+        do len <- getSequenceHeader
+           isolate len (getCC <|> getMC)
+        where getCC = do tc <- getCommon
+                         cc <- getContractCreation
+                         ts <- getSignature
+                         return $ CC tc cc ts
+              getMC = do tc <- getCommon
+                         mc <- getMessageCall
+                         ts <- getSignature
+                         return $ MC tc mc ts
 
 -- Known as 'e' in Appendix F
 transactionHashMC :: TCommon -> MessageCall -> Word256
@@ -86,14 +123,17 @@ transactionHashCC c cc = hashBytes $ L.toStrict $ runPut $ putSequence $
            putContractCreation cc
 
 initContractCreation :: CPRG g => g -> Word256 -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> Transaction
-initContractCreation cprg pr nonc v gp gl ini =
-       let pk = makePrivateKey pr
-           tc = TCommon nonc v gp gl
+initContractCreation _cprg _pr nonc v gp gl ini =
+       let tc = TCommon nonc v gp gl
            cc = ContractCreation ini
-           hashable = L.toStrict $ runPut $ do putCommon tc
-                                               putContractCreation cc
-           sig = signTransaction cprg pk hashable
        in CC tc cc NonSig
+
+
+initMessageCall :: CPRG g => g -> Word256 -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> Transaction
+initMessageCall _cprg _pr nonc v gp gl to dat = 
+       let tc = TCommon nonc v gp gl
+           mc = MessageCall to dat
+       in MC tc mc NonSig
 
 ----
 
@@ -121,18 +161,23 @@ intrinsicGas (MC _ (MessageCall _ dat) _) =
         F.transaction + F.txdata * (fromIntegral $ B.length dat)
 
 -- Equation (37)
-upFrontConst :: Transaction -> Integer
-upFrontConst (CC (TCommon _ v gp gl) _ _)  = gp * gl + v
-upFrontConst (MC (TCommon _ v gp gl) _ _)  = gp * gl + v
+upFrontCost :: Transaction -> Integer
+upFrontCost (CC (TCommon _ v gp gl) _ _)  = gp * gl + v
+upFrontCost (MC (TCommon _ v gp gl) _ _)  = gp * gl + v
+
+isBalanceAvailable :: Transaction -> A.Account -> Bool
+isBalanceAvailable t a = (upFrontCost t) <= (A.balance a)
+
+isNonceValid :: Transaction -> A.Account -> Bool
+isNonceValid t a = (nonce t) == (A.nonce a)
 
 -- sender :: MapStorage -> Transaction -> Account
 
-{-
 -- Section 6
-isTransactionValid :: Context -> Transaction -> Bool
-isTransactionValid c t = and [
+isTransactionValid :: Transaction -> A.Account -> Bool
+isTransactionValid t a = and [
+        -- TODO: Check sender ID = account address
         isSignatureValid t,
-        -- isNonceValid c t,
-        isGasValid t
-        -- isBalanceAvailable c t ]
-        -- -}
+        isNonceValid t a,
+        isGasValid t,
+        isBalanceAvailable t a ]

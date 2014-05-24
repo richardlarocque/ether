@@ -42,7 +42,7 @@ import qualified Data.Vector as V
 type Gas = Integer
 type MemSlice = V.Vector Word8
 type Stack = [Word256]
-data Address = A Word160
+data Address = A Word160 deriving (Show, Eq)
 type Ether = Integer
 type ByteArray = V.Vector Word8
 
