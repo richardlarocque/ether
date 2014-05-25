@@ -39,9 +39,6 @@ roundTripTransaction s = roundTripTestIO s putTransaction getTransaction
 roundTripSignature :: TSignature -> Test.Framework.Test
 roundTripSignature = roundTripTest (putSignature) (getSignature)
 
-roundTripTCommon :: TCommon -> Test.Framework.Test
-roundTripTCommon = roundTripTest (putCommon) (getCommon)
-
 roundTripContractCreation :: ContractCreation -> Test.Framework.Test
 roundTripContractCreation = roundTripTest (putContractCreation) (getContractCreation)
 
@@ -139,9 +136,7 @@ verifyTests = [ testGroup "InitialGasCheck" [
 
 serializeTests ::  [Test.Framework.Test]
 serializeTests =
-        [  testGroup "TCommon" [
-        roundTripTCommon $ TCommon 1 10 2 20
-        ], testGroup "ContractCreation" [
+        [  testGroup "ContractCreation" [
         roundTripContractCreation $ ContractCreation B.empty
         ], testGroup "MessageCall" [
         roundTripMessageCall $ MessageCall zeroAddress B.empty
