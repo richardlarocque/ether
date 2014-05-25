@@ -71,6 +71,7 @@ Test-suite ether_tests
   ghc-options:         -O2 -Wall
 
   other-modules:
+      Tests.HUnit.Account,
       Tests.HUnit.EVM,
       Tests.HUnit.HexPrefix,
       Tests.HUnit.RLP,

@@ -84,7 +84,7 @@ blength = V.length
 fromBytes :: ByteArray -> Word256
 fromBytes bs | V.length bs > 32 = error "Input list too long"
 fromBytes bs = (decode . BL.pack . pad . V.toList) bs
-        where pad xs = (replicate (32 - (length xs)) 0) ++ xs
+        where pad xs = replicate (32 - length xs) 0 ++ xs
 
 toBytes :: Word256 -> ByteArray
 toBytes = V.fromList . BL.unpack . encode
