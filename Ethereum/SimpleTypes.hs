@@ -13,11 +13,8 @@ module Ethereum.SimpleTypes (
         Gas,
         MemSlice,
         Stack,
-        Address(..),
         Ether,
         ByteArray,
-        RunTimeError(..),
-        fromAddress,
         fromEther,
         brange,
         safeBrange,
@@ -27,8 +24,7 @@ module Ethereum.SimpleTypes (
         fromBytes,
         toBytes,
         emptyMemSlice,
-        memToByteString,
-        zeroAddress
+        memToByteString
 ) where
 
 import Data.Binary
@@ -42,18 +38,8 @@ import qualified Data.Vector as V
 type Gas = Integer
 type MemSlice = V.Vector Word8
 type Stack = [Word256]
-data Address = A Word160 deriving (Show, Eq)
 type Ether = Integer
 type ByteArray = V.Vector Word8
-
-data RunTimeError = OutOfGas
-                  | InvalidInstruction
-                  | StackUnderflow
-                  deriving (Show,Eq)
-
--- Addresses are 160 bits
-fromAddress :: Integral a => Address -> a
-fromAddress (A w) = fromIntegral w
 
 fromEther :: Integral a => Ether -> a
 fromEther = fromIntegral
@@ -94,6 +80,3 @@ emptyMemSlice = V.empty
 
 memToByteString :: ByteArray -> B.ByteString
 memToByteString = B.pack . V.toList
-
-zeroAddress :: Address
-zeroAddress = A 0

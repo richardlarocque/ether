@@ -1,7 +1,6 @@
 module Tests.HUnit.Transaction(tests) where
 
 import Crypto.Random
-import Data.LargeWord
 import Data.Binary.Put
 import Data.Binary.Get
 import Ethereum.Crypto
@@ -45,29 +44,20 @@ roundTripContractCreation = roundTripTest (putContractCreation) (getContractCrea
 roundTripMessageCall :: MessageCall -> Test.Framework.Test
 roundTripMessageCall = roundTripTest (putMessageCall) (getMessageCall)
 
--- serialization_tests :: [Test.Framework.Test]
--- serialization_tests = [
---         testGroup "Serialization" [
-
-{-
-defaultContractCreation :: IO (Word256 -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> Transaction)
-defaultContractCreation = do
+cc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> IO Transaction
+cc pr n v gv gl bs = do
         pool <- createEntropyPool
         let cprg = cprgCreate pool :: SystemRNG
-        return $ initContractCreation cprg
-        -}
+        return $ initContractCreation cprg pr n v gv gl bs
 
-cc :: Word256 -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> IO Transaction
-cc k n v gv gl bs = do
-        pool <- createEntropyPool
-        let cprg = cprgCreate pool :: SystemRNG
-        return $ initContractCreation cprg k n v gv gl bs
+acc1234 :: PrivateAccount
+acc1234 = makePrivateAccount 1234
 
 ccWithInitialGas :: Integer -> IO Transaction
-ccWithInitialGas gl = cc 1234 0 10 1 gl (B.pack [0..9])
+ccWithInitialGas gl = cc acc1234 0 10 1 gl (B.pack [0..9])
 
 ccWithNonce :: Integer -> IO Transaction
-ccWithNonce n = cc 1234 n 10 1 1000 (B.pack [0..9])
+ccWithNonce n = cc acc1234 n 10 1 1000 (B.pack [0..9])
 
 accWithNonce :: Integer -> Account
 accWithNonce n = Account n 100 zeroRef NullCodeHash
@@ -76,13 +66,13 @@ accWithBalance :: Integer -> Account
 accWithBalance b = Account 10 b zeroRef NullCodeHash
 
 ccWithExpenses :: Integer -> Integer -> Integer -> IO Transaction
-ccWithExpenses v gp gl = cc 1234 10 v gp gl (B.pack [0..9])
+ccWithExpenses v gp gl = cc acc1234 10 v gp gl (B.pack [0..9])
 
-mc :: Word256 -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> IO Transaction
-mc k n v gv gl to dat = do
+mc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> IO Transaction
+mc pr n v gv gl to dat = do
         pool <- createEntropyPool
         let cprg = cprgCreate pool :: SystemRNG
-        return $ initMessageCall cprg k n v gv gl to dat
+        return $ initMessageCall cprg pr n v gv gl to dat
 
 validGasCheck :: String -> IO Transaction -> Bool -> Test.Framework.Test
 validGasCheck s t e = testCase s $
@@ -141,17 +131,17 @@ serializeTests =
         ], testGroup "MessageCall" [
         roundTripMessageCall $ MessageCall zeroAddress B.empty
         ], testGroup "Signatures" [
-        roundTripSignature $ NonSig
+        roundTripSignature $ (nonSig $ acc1234)
         ], testGroup "TransactionCC" [
-        roundTripTransaction "basic"     $ cc 1234 10 10000 1 10 (B.empty),
-        roundTripTransaction "withCode1" $ cc 1234 10 10000 1 10 (B.replicate 10 0),
-        roundTripTransaction "withCode2" $ cc 1234 10 10000 1 10 (B.replicate 10 0xff),
-        let v = 2^(255 :: Integer) in roundTripTransaction "bigInts"  $ cc 1234 v v v v (B.empty)
+        roundTripTransaction "basic"     $ cc acc1234 10 10000 1 10 (B.empty),
+        roundTripTransaction "withCode1" $ cc acc1234 10 10000 1 10 (B.replicate 10 0),
+        roundTripTransaction "withCode2" $ cc acc1234 10 10000 1 10 (B.replicate 10 0xff),
+        let v = 2^(255 :: Integer) in roundTripTransaction "bigInts"  $ cc acc1234 v v v v (B.empty)
         ], testGroup "TransactionMC" [
-        roundTripTransaction "basic"     $ mc 1234 10 10000 1 10 (A 10) (B.empty),
-        roundTripTransaction "withCode1" $ mc 1234 10 10000 1 10 (A 10) (B.replicate 10 0),
-        roundTripTransaction "withCode2" $ mc 1234 10 10000 1 10 (A 10) (B.replicate 10 0xff),
-        let v = 2^(255 :: Integer) in roundTripTransaction "bigInts"  $ mc 1234 v v v v (A 10) (B.empty)
+        roundTripTransaction "basic"     $ mc acc1234 10 10000 1 10 (A 10) (B.empty),
+        roundTripTransaction "withCode1" $ mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0),
+        roundTripTransaction "withCode2" $ mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0xff),
+        let v = 2^(255 :: Integer) in roundTripTransaction "bigInts"  $ mc acc1234 v v v v (A 10) (B.empty)
         ]
         ]
 

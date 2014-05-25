@@ -24,6 +24,7 @@ module Ethereum.EVM.ExecutionEnvironment(
 
 import Data.Word
 import Data.LargeWord
+import Ethereum.State.Address
 
 import Ethereum.SimpleTypes
 

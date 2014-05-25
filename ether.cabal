@@ -39,6 +39,7 @@ Library
       Ethereum.Encoding.RLP
       Ethereum.FeeSchedule
       Ethereum.SimpleTypes
+      Ethereum.Execution
       Ethereum.State.Account
       Ethereum.State.Address
       Ethereum.State.Transaction
@@ -76,7 +77,8 @@ Test-suite ether_tests
       Tests.HUnit.HexPrefix,
       Tests.HUnit.RLP,
       Tests.HUnit.Transaction,
-      Tests.HUnit.Trie
+      Tests.HUnit.Trie,
+      Tests.HUnit.Integration
 
   build-depends:
       ether,

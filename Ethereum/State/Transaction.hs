@@ -18,10 +18,9 @@ import Control.Monad
 import Crypto.Random
 import Data.Binary
 import Data.Binary.Get
-import Data.LargeWord
 import Ethereum.Crypto
-import Ethereum.SimpleTypes
 import Ethereum.Encoding.RLP
+import Ethereum.State.Address
 import qualified Ethereum.State.Account as A
 import qualified Ethereum.FeeSchedule as F
 import qualified Data.ByteString as B
@@ -110,17 +109,17 @@ transactionHashCC c cc = hashBytes $ L.toStrict $ runPut $ putSequence $
            putContractCreation cc
 -}
 
-initContractCreation :: CPRG g => g -> Word256 -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> Transaction
-initContractCreation _cprg _pr nonc v gp gl ini = T nonc v gp gl (Right (ContractCreation ini)) NonSig
+initContractCreation :: CPRG g => g -> PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> Transaction
+initContractCreation _cprg pr nonc v gp gl ini = T nonc v gp gl (Right (ContractCreation ini)) (nonSig pr)
 
 
-initMessageCall :: CPRG g => g -> Word256 -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> Transaction
-initMessageCall _cprg _pr nonc v gp gl to dat = T nonc v gp gl (Left (MessageCall to dat)) NonSig
+initMessageCall :: CPRG g => g -> PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> Transaction
+initMessageCall _cprg pr nonc v gp gl to dat = T nonc v gp gl (Left (MessageCall to dat)) (nonSig pr)
 
 ----
 
 isSignatureValid :: Transaction -> Bool
-isSignatureValid (T _ _ _ _ _ NonSig) = True
+isSignatureValid (T _ _ _ _ _ sig) = verifyTSig B.empty sig
 
 isGasValid :: Transaction -> Bool
 isGasValid t@(T _ _ _ gl _ _) = intrinsicGas t < gl
@@ -142,7 +141,8 @@ isBalanceAvailable t a = (upFrontCost t) <= (A.balance a)
 isNonceValid :: Transaction -> A.Account -> Bool
 isNonceValid t a = (nonce t) == (A.nonce a)
 
--- sender :: MapStorage -> Transaction -> Account
+sender :: Transaction -> Address
+sender (T _ _ _ _ _ ts) = senderAddress ts
 
 -- Section 6
 isTransactionValid :: Transaction -> A.Account -> Bool

@@ -17,9 +17,8 @@ import Control.Monad
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
-import Data.List
 import Data.LargeWord
-import Ethereum.SimpleTypes
+import Ethereum.Common
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as B
 
@@ -58,12 +57,6 @@ putScalar = (putArray . asBE)
 
 putScalar256 :: Word256 -> Put
 putScalar256 = putScalar . fromIntegral
-
-putAddress :: Address -> Put
-putAddress = putScalar . fromAddress
-
-getAddress :: Get Address
-getAddress = getScalar >>= return . A . fromIntegral
 
 getScalar ::  Get Integer
 getScalar = do getArray >>= unBE
@@ -105,15 +98,3 @@ getSequenceBytes = (liftM L.toStrict) $ getSequence getRemainingLazyByteString
 
 getWord8s :: Integral a => a -> Get [Word8]
 getWord8s x = replicateM (fromIntegral x) get
-
-asBE :: Integral a => a -> B.ByteString
-asBE = B.pack . reverse . (unfoldr (\v ->
-        if v == 0
-           then Nothing
-           else Just (fromIntegral $ v `mod` 256, v `div` 256)))
-
-unBE :: Monad m => B.ByteString -> m Integer
-unBE bs = case bs of
-        _ | B.length bs == 0 -> return 0
-        _ | B.head bs == 0 -> fail "Unexpected leading zero(es)"
-        _ -> return $ B.foldl' (\x y -> x * 256 + (fromIntegral y)) 0 bs

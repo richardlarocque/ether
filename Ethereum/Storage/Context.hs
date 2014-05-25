@@ -14,9 +14,16 @@ data Context = Context MapStorage TreeRef
 initContext :: Context
 initContext = Context emptyMapStorage T.zeroRef
 
+nullStateRoot :: TreeRef
+nullStateRoot = zeroRef
+
 getAccount :: Context -> Address -> Maybe Account
-getAccount c addr = do a <- lookupInTrie c (asBigEndian addr)
+getAccount c addr = do a <- lookupInTrie c (addressAsKey addr)
                        return $ decode (L.fromStrict a)
+
+updateAccount :: Context -> (Address, Account) -> Context
+updateAccount c (addr, acc) =
+        insertToTrie c (addressAsKey addr, (L.toStrict . encode) acc)
 
 insertToTrie :: Context -> (B.ByteString, B.ByteString) -> Context
 insertToTrie (Context s tr) kv =

@@ -25,8 +25,14 @@ import Ethereum.EVM.MachineState
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.SimpleTypes
 import Ethereum.Common
+import Ethereum.State.Address
 
 data SystemState = SystemState
+
+data RunTimeError = OutOfGas
+                  | InvalidInstruction
+                  | StackUnderflow
+                  deriving (Show,Eq)
 
 execute :: ExecutionEnvironment -> Either RunTimeError MemSlice
 execute ee = execNext ee (initialState ee)

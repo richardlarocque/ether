@@ -60,3 +60,12 @@ instance Binary Account where
                          c <- (get :: Get CodeHash)
                          return $ Account n b s c
 
+debit :: Account -> Integer -> Account
+debit a@(Account {balance=b}) i = a { balance = b - i }
+
+credit :: Account -> Integer -> Account
+credit a@(Account {balance=b}) i = a { balance = b + i }
+
+nextNonce :: Account -> Account
+nextNonce a@(Account {nonce=n}) = a { nonce = n + 1 }
+

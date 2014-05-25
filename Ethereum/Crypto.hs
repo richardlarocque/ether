@@ -15,28 +15,41 @@ import Data.Binary.Put
 import Data.Binary.Get
 import Data.Byteable
 import Data.LargeWord
+import Ethereum.State.Address
 import Ethereum.Encoding.RLP
-import Ethereum.SimpleTypes
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 
+-- TODO: This is where we would store the private key
+data PrivateAccount = PrivateAccount Address
+
+addressFromPriv :: PrivateAccount -> Address
+addressFromPriv (PrivateAccount a) = a
+
+makePrivateAccount :: Word160 -> PrivateAccount
+makePrivateAccount w = PrivateAccount (A w)
+
+nonSig :: PrivateAccount -> TSignature
+nonSig (PrivateAccount a) = NonSig a
+
 -- FIXME: This is completely wrong.
 data TSignature = TSignature B.ByteString Integer Integer
-                | NonSig
+                | NonSig Address
                 deriving (Show, Eq)
 
 putSignature :: TSignature -> Put
 putSignature (TSignature pub r s) = do putArray pub
                                        putScalar r
                                        putScalar s
-putSignature (NonSig) = putScalar 0
+putSignature (NonSig a) = do putScalar 0; putAddress a
 
 getSignature :: Get TSignature
 getSignature = getNoSig <|> getTSig
         where getNoSig = do v <- getScalar
                             unless (v == 0) (fail "not a NonSig")
-                            return NonSig
+                            a <- getAddress
+                            return $ NonSig a
               getTSig = do pub <- getArray
                            r <- getScalar
                            s <- getScalar
@@ -75,7 +88,8 @@ signTransaction cprg pk bs =
 
 senderAddress :: TSignature -> Address
 senderAddress (TSignature pub _ _) = publicAsAddress pub
+senderAddress (NonSig a) = a
 
 verifyTSig :: B.ByteString -> TSignature -> Bool
-verifyTSig bs (TSignature pub r s) =
-        verify hashBytesToBytes (publicFromBytes pub) (Signature r s) bs
+verifyTSig _ (NonSig _) = True
+verifyTSig _ _ = False
