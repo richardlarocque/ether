@@ -8,6 +8,9 @@ import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit
 
+import Ethereum.Storage.Context
+import Ethereum.State.Address
+import Ethereum.EVM.MachineState
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.InstructionSet as E
 import Ethereum.EVM.VM
@@ -72,10 +75,10 @@ callValue :: Ether
 callValue = 5000000
 
 gasPriceValue :: Ether
-gasPriceValue = 10
+gasPriceValue = 1
 
-simpleProgram :: [Word8] -> ExecutionEnvironment
-simpleProgram is =
+testExecutionEnv :: [Word8] -> ExecutionEnvironment
+testExecutionEnv is =
   EE { address=ownAddr,
        origin=originAddr,
        gasPrice=gasPriceValue,
@@ -84,39 +87,48 @@ simpleProgram is =
        value=callValue,
        code= V.fromList is };
 
-simpleExec ::  [Word8] -> Either RunTimeError MemSlice
-simpleExec = execute.simpleProgram
+runCodeTest :: [Word8] -> Termination -> Assertion
+runCodeTest c v = assert $ simpleRun c == v
 
-runCodeTest :: [Word8] -> Either RunTimeError MemSlice -> Assertion
-runCodeTest c v = assert $ (execute (simpleProgram c)) ==  v
+simpleRun :: [Word8] -> Termination
+simpleRun code =
+        let ms = initWithGas 10000
+            context = initContext
+            ee = testExecutionEnv code
+        in runUntilDone context ms ee
+
+runUntilDone :: Context -> MachineState -> ExecutionEnvironment -> Termination
+runUntilDone c ms ee = case runState execStep (c, ms, ee) of
+        (Left t, _) -> t
+        (Right _, (c', ms', ee')) -> runUntilDone c' ms' ee'
 
 returnTest :: String -> [Word8] -> Word256 -> Test.Framework.Test
 returnTest name codes v = testCase name (expect @=? result)
-        where expect = Right (toBytes v)
-              result = simpleExec $ basicReturn $ codes
+        where expect = NormalHalt (toBytes v)
+              result = simpleRun $ basicReturn $ codes
 
 opTest :: Instruction -> Word256 -> Test.Framework.Test
 opTest o v = testCase name (expect @=? result)
         where name = show o
-              expect = Right (toBytes v)
-              result = simpleExec ( basicReturn $ op o )
+              expect = NormalHalt (toBytes v)
+              result = simpleRun ( basicReturn $ op o )
 
 unOpTest ::  Instruction -> Word256 -> Word256 -> Test.Framework.Test
 unOpTest o a v = testCase name (expect @=? result)
         where name = show o ++ " " ++ show a
-              expect = Right (toBytes v)
-              result = simpleExec ( basicReturn $ unOp o (p32 a) )
+              expect = NormalHalt (toBytes v)
+              result = simpleRun ( basicReturn $ unOp o (p32 a) )
 
 binOpTest ::  Instruction -> Word256 -> Word256 -> Word256 -> Test.Framework.Test
 binOpTest o a1 a2 v = testCase name (expect @=? result)
         where name = show a1 ++ " " ++ show o ++ " " ++ show a2
-              expect = Right (toBytes v)
-              result = simpleExec ( basicReturn $ binOp o (p32 a1) (p32 a2) )
+              expect = NormalHalt (toBytes v)
+              result = simpleRun ( basicReturn $ binOp o (p32 a1) (p32 a2) )
 
 sha3Test ::   String -> [Word8] -> Word256 -> Test.Framework.Test
 sha3Test name val e = testCase name (expect @=? result)
-        where expect = Right (toBytes e)
-              result = simpleExec $ basicReturn (putMem ++ hashMem)
+        where expect = NormalHalt (toBytes e)
+              result = simpleRun $ basicReturn (putMem ++ hashMem)
               memAddr = 100
               memLen = length val
               putMem = memLiteral memAddr val
@@ -124,8 +136,8 @@ sha3Test name val e = testCase name (expect @=? result)
 
 memTest :: TestName -> (Word8 -> [Word8]) -> Word256 -> Test.Framework.Test
 memTest name putMemFunc e = testCase name (expect @=? result)
-        where expect = Right (toBytes e)
-              result = simpleExec $ putMem ++ binOp RETURN (p1 memAddr) (p1 32)
+        where expect = NormalHalt (toBytes e)
+              result = simpleRun $ putMem ++ binOp RETURN (p1 memAddr) (p1 32)
               memAddr = 100
               putMem = putMemFunc memAddr
 
@@ -147,9 +159,9 @@ tests = [
                 ],
 
         testGroup "Halts and Exceptions" [ 
-                testCase "invalidInstruction" $ runCodeTest [0xfa] (Left InvalidInstruction),
-                testCase "stackUnderflow" $ runCodeTest (op ADD) (Left StackUnderflow),
-                testCase "stop" $ runCodeTest (op STOP) (Right emptyMemSlice)
+                testCase "invalidInstruction" $ runCodeTest [0xfa] (InvalidInstruction),
+                testCase "stackUnderflow" $ runCodeTest (op ADD) (StackUnderflow),
+                testCase "stop" $ runCodeTest (op STOP) (NormalHalt emptyMemSlice)
                 ],
         testGroup "Unary Operations" [
                 unOpTest NEG    5 (twosComp 5),

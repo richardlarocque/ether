@@ -30,8 +30,10 @@ import Ethereum.Storage.Context
 import qualified Ethereum.FeeSchedule as F
 
 data Termination = OutOfGasException
-                 | ExceptionHalt
+                 | InvalidInstruction
+                 | StackUnderflow
                  | NormalHalt MemSlice
+                 deriving (Show, Eq)
 
 data ExecResult = OutOfGas
                 | Result Context MachineState ExecutionEnvironment (Maybe MemSlice)
@@ -67,10 +69,10 @@ getEE :: ExecMonad ExecutionEnvironment
 getEE = ExecMonad $ \s@(_,_,ee) -> (Right ee, s)
 
 invalidInstruction :: Word8 -> ExecMonad a
-invalidInstruction _b = ExecMonad $ \s -> (Left ExceptionHalt, s)
+invalidInstruction _b = ExecMonad $ \s -> (Left InvalidInstruction, s)
 
 stackUnderflow :: ExecMonad a
-stackUnderflow = ExecMonad $ \s -> (Left ExceptionHalt, s)
+stackUnderflow = ExecMonad $ \s -> (Left StackUnderflow, s)
 
 normalHalt :: MemSlice -> ExecMonad ()
 normalHalt bs = ExecMonad $ \s -> (Left $ NormalHalt bs, s)
@@ -80,10 +82,11 @@ executeTransaction c g ee = execute' c (MS g 0 initMem 0 []) ee
 
 execute' :: Context -> MachineState -> ExecutionEnvironment -> ExecResult
 execute' c ms ee = case runState execStep (c, ms, ee) of
-        (Left OutOfGasException, _)              -> OutOfGas
-        (Left ExceptionHalt, (c', ms', ee'))     -> Result c' ms' ee' Nothing
-        (Left (NormalHalt bs), (c', ms', ee'))   -> Result c' ms' ee' (Just bs)
-        (Right (), (c', ms', ee'))               -> execute' c' ms' ee'
+        (Left OutOfGasException, _)                -> OutOfGas
+        (Left InvalidInstruction, (c', ms', ee'))  -> Result c' ms' ee' Nothing
+        (Left StackUnderflow, (c', ms', ee'))      -> Result c' ms' ee' Nothing
+        (Left (NormalHalt bs), (c', ms', ee'))     -> Result c' ms' ee' (Just bs)
+        (Right (), (c', ms', ee'))                 -> execute' c' ms' ee'
 
 execStep :: ExecMonad ()
 execStep = do op <- nextOp

@@ -13,6 +13,7 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 9
 
 module Ethereum.EVM.MachineState(
         MachineState(..),
+        initWithGas,
         initMem,
         incPC,
         getOp,
@@ -40,6 +41,9 @@ data MachineState = MS {
         memsize :: Word256,
         stack :: Stack
 }
+
+initWithGas :: Integer -> MachineState
+initWithGas g = MS g 0 initMem 0 []
 
 initMem :: ByteArray
 initMem = V.replicate 512 0
