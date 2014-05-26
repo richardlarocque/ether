@@ -14,13 +14,10 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 9
 module Ethereum.EVM.MachineState(
         MachineState(..),
         initMem,
-        setPC,
         incPC,
         addPC,
         getOp,
-        mstore,
         mstorerange,
-        mload,
         mloadrange,
         crange,
         outOfGas,
@@ -48,16 +45,9 @@ data MachineState = MS {
 initMem :: ByteArray
 initMem = V.replicate 512 0
 
-mstore :: Word256 -> Word256 -> MachineState -> MachineState
-mstore addr word = (setMem (fromIntegral $ addr) (toBytes word)) . (expandMem (addr+31))
-
 mstorerange :: Word256 -> ByteArray -> MachineState -> MachineState
 mstorerange addr bs = let addr' = fromIntegral $ addr
                       in (setMem addr' bs) . (expandMem (fromIntegral (addr' + blength bs)))
-
-mload :: Word256 -> MachineState -> (MachineState, Word256)
-mload addr ms = let ms' = expandMem (addr+31) ms
-                in (ms', fromBytes $ getMem (fromIntegral $ addr) 32 ms')
 
 mloadrange :: Word256 -> Word256 -> MachineState -> (MachineState, ByteArray)
 mloadrange start len  ms = let ms' = expandMem (fromIntegral (start+len)) ms
@@ -66,9 +56,6 @@ mloadrange start len  ms = let ms' = expandMem (fromIntegral (start+len)) ms
 
 outOfGas :: MachineState -> Bool
 outOfGas ms = (gas ms) < 0
-
-setPC :: (Integral a) => a -> MachineState -> MachineState
-setPC x = pc' ^= fromIntegral x
 
 incPC :: MachineState -> MachineState
 incPC = pc' ^+= 1

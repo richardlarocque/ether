@@ -178,11 +178,78 @@ runOp CODECOPY        = stepFee >> do maddr <- pop
                                       memStore maddr bs
 runOp GASPRICE        = stepFee >> getEE >>= push . fromEther . gasPrice
 
+-- 40s: Block Information
+runOp PREVHASH        = undefined
+runOp COINBASE        = undefined
+runOp TIMESTAMP       = undefined
+runOp NUMBER          = undefined
+runOp DIFFICULTY      = undefined
+runOp GASLIMIT        = undefined
 
+-- 50s: Stack, Memory, Storage and Flow Operations
+runOp POP       = stepFee >> do { pop; return () }
+runOp DUP       = stepFee >> do { x <- pop; push x; push x }
+runOp SWAP      = stepFee >> do { x <- pop; y <- pop; push x; push y }
+runOp MLOAD     = stepFee >> do x <- pop
+                                w <- memLoadWord x
+                                push w
+runOp MSTORE    = stepFee >> do a <- pop
+                                w <- pop
+                                memStoreWord a w
+runOp MSTORE8   = stepFee >> do a <- pop
+                                w <- pop
+                                memStoreWord a (lowestByte w)
+runOp SLOAD     = stepFee >> undefined
+runOp SSTORE    = stepFee >> undefined
+runOp JUMP      = stepFee >> pop >>= setPC
+runOp JUMPI     = stepFee >> do a <- pop 
+                                c <- pop
+                                if (c == 0)
+                                   then setPC a
+                                   else incrementPC
+runOp PC        = stepFee >> getMachineState >>= push . fromIntegral . pc
+runOp MSIZE     = stepFee >> getMachineState >>= push . fromIntegral . memsize
+runOp GAS       = stepFee >> getMachineState >>= push . fromIntegral . gas
 
--- FIXME: Many of these ain't right.
-runOp SUICIDE = normalHalt emptyMemSlice
-runOp RETURN  = normalHalt emptyMemSlice
+-- 60s and 70s: Push Operations
+runOp PUSH1     = pushOp PUSH1
+runOp PUSH2     = pushOp PUSH2
+runOp PUSH3     = pushOp PUSH3
+runOp PUSH4     = pushOp PUSH4
+runOp PUSH5     = pushOp PUSH5
+runOp PUSH6     = pushOp PUSH6
+runOp PUSH7     = pushOp PUSH7
+runOp PUSH8     = pushOp PUSH8
+runOp PUSH9     = pushOp PUSH9
+runOp PUSH10    = pushOp PUSH10
+runOp PUSH11    = pushOp PUSH11
+runOp PUSH12    = pushOp PUSH12
+runOp PUSH13    = pushOp PUSH13
+runOp PUSH14    = pushOp PUSH14
+runOp PUSH15    = pushOp PUSH15
+runOp PUSH16    = pushOp PUSH16
+runOp PUSH17    = pushOp PUSH17
+runOp PUSH18    = pushOp PUSH18
+runOp PUSH19    = pushOp PUSH19
+runOp PUSH20    = pushOp PUSH20
+runOp PUSH21    = pushOp PUSH21
+runOp PUSH22    = pushOp PUSH22
+runOp PUSH23    = pushOp PUSH23
+runOp PUSH24    = pushOp PUSH24
+runOp PUSH25    = pushOp PUSH25
+runOp PUSH26    = pushOp PUSH26
+runOp PUSH27    = pushOp PUSH27
+runOp PUSH28    = pushOp PUSH28
+runOp PUSH29    = pushOp PUSH29
+runOp PUSH30    = pushOp PUSH30
+runOp PUSH31    = pushOp PUSH31
+runOp PUSH32    = pushOp PUSH32
+
+-- f0s: System operations
+runOp CREATE    = undefined
+runOp CALL      = undefined
+runOp RETURN    = normalHalt emptyMemSlice
+runOp SUICIDE   = normalHalt emptyMemSlice  -- FIXME: not right
 
 stepFee :: ExecMonad ()
 stepFee = return ()
@@ -208,9 +275,15 @@ memLoad a len = do ms <- getMachineState
                    putMachineState ms'
                    return bytes
 
+memLoadWord :: Word256 -> ExecMonad Word256
+memLoadWord a = memLoad a 32 >>= return . fromBytes
+
 memStore :: Word256 -> ByteArray -> ExecMonad ()
 memStore a bs = do ms <- getMachineState
                    putMachineState $ mstorerange a bs ms
+
+memStoreWord :: Word256 -> Word256 -> ExecMonad ()
+memStoreWord a w = memStore a (toBytes w)
 
 dataLoad :: Word256 -> Word256 -> ExecMonad ByteArray
 dataLoad a len = getEE >>= return . drange (a, len)
@@ -230,6 +303,20 @@ stackUnOp :: (Word256 -> Word256) -> ExecMonad ()
 stackUnOp f = do a1 <- pop
                  push (f a1)
 
+pushOp :: Instruction -> ExecMonad ()
+pushOp op = do ms <- getMachineState
+               let s = (pc ms) + 1
+               let len = pushLen op
+               v <- codeLoad (fromIntegral s) (fromIntegral len)
+               push $ fromBytes v
+
+setPC :: Word256 -> ExecMonad ()
+setPC pc' = do ms <- getMachineState
+               putMachineState ms{pc=(fromIntegral pc')}
+
+incrementPC :: ExecMonad ()
+incrementPC = do ms <- getMachineState
+                 putMachineState ms{pc=(pc ms)+1}
 
 -- Arithmetic helpers.
 
@@ -265,6 +352,9 @@ byteIndex ::  Word256 -> Word256 -> Word8
 byteIndex i w = if i < 32
                    then extractByte w i
                    else 0
+
+lowestByte :: Integral a => Word256 -> a
+lowestByte = fromIntegral . (0xff .&.)
 
 {-
 
@@ -483,7 +573,7 @@ stackBinOp f = withTwoArgs (\a b -> push (f a b))
 stackUnOp :: (Word256 -> Word256) -> MachineState -> Either RunTimeError MachineState
 stackUnOp f = withArg (push . f)
 
-pushOp :: Word256 -> ExecutionEnvironment -> MachineState -> Either RunTimeError MachineState
+pushOp :: Instruction -> ExecutionEnvironment -> MachineState -> Either RunTimeError MachineState
 pushOp l _ _ | l > 32 = error "Invalid push length argument"
 pushOp l ee ms = let s = fromIntegral $ pc ms + 1
                      v = fromBytes $ crange (s, l) ee

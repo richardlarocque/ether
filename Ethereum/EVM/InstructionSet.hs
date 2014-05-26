@@ -15,7 +15,7 @@ module Ethereum.EVM.InstructionSet(
         Instruction(..),
         fromOpcode,
         toOpcode,
-        stackPopCount) where
+        pushLen) where
 
 import Data.Word
 
@@ -122,109 +122,6 @@ data Instruction =
     | RETURN
     | SUICIDE
     deriving (Show,Eq)
-
--- | The stack requirements for a given instruction.
-stackPopCount :: Instruction -> Int
-{- 0s: Stop and Arithmetic Operations -}
-stackPopCount STOP      = 0
-stackPopCount ADD       = 2
-stackPopCount MUL       = 2
-stackPopCount SUB       = 2
-stackPopCount DIV       = 2
-stackPopCount SDIV      = 2
-stackPopCount MOD       = 2
-stackPopCount SMOD      = 2
-stackPopCount EXP       = 2
-stackPopCount NEG       = 1
-stackPopCount Ethereum.EVM.InstructionSet.LT = 2
-stackPopCount Ethereum.EVM.InstructionSet.GT = 2
-stackPopCount SLT       = 2
-stackPopCount SGT       = 2
-stackPopCount Ethereum.EVM.InstructionSet.EQ = 2
-stackPopCount NOT       = 1
-stackPopCount AND       = 2
-stackPopCount OR        = 2
-stackPopCount XOR       = 2
-stackPopCount BYTE      = 2
-
-{- 20s: SHA3 -}
-stackPopCount SHA3      = 2
-
-{- 30s: Environmental Information -}
-stackPopCount ADDRESS           = 0
-stackPopCount BALANCE           = 0
-stackPopCount ORIGIN            = 0
-stackPopCount CALLER            = 0
-stackPopCount CALLVALUE         = 0
-stackPopCount CALLDATALOAD      = 1
-stackPopCount CALLDATASIZE      = 0
-stackPopCount CALLDATACOPY      = 0
-stackPopCount CODESIZE          = 0
-stackPopCount CODECOPY          = 0
-stackPopCount GASPRICE          = 0
-
-{- 40s: Block Information -}
-stackPopCount PREVHASH          = 0
-stackPopCount COINBASE          = 0
-stackPopCount TIMESTAMP         = 0
-stackPopCount NUMBER            = 0
-stackPopCount DIFFICULTY        = 0
-stackPopCount GASLIMIT          = 0
-
-{- 50s: Stack, Memory, Storage and Flow Operations -}
-stackPopCount POP       = 1
-stackPopCount DUP       = 1
-stackPopCount SWAP      = 2
-stackPopCount MLOAD     = 1
-stackPopCount MSTORE    = 2
-stackPopCount MSTORE8   = 2
-stackPopCount SLOAD     = 1
-stackPopCount SSTORE    = 2
-stackPopCount JUMP      = 1
-stackPopCount JUMPI     = 2
-stackPopCount PC        = 0
-stackPopCount MSIZE     = 0
-stackPopCount GAS       = 0
-
-{- 60s and 70s: Push Operations -}
-stackPopCount PUSH1     = 0
-stackPopCount PUSH2     = 0
-stackPopCount PUSH3     = 0
-stackPopCount PUSH4     = 0
-stackPopCount PUSH5     = 0
-stackPopCount PUSH6     = 0
-stackPopCount PUSH7     = 0
-stackPopCount PUSH8     = 0
-stackPopCount PUSH9     = 0
-stackPopCount PUSH10    = 0
-stackPopCount PUSH11    = 0
-stackPopCount PUSH12    = 0
-stackPopCount PUSH13    = 0
-stackPopCount PUSH14    = 0
-stackPopCount PUSH15    = 0
-stackPopCount PUSH16    = 0
-stackPopCount PUSH17    = 0
-stackPopCount PUSH18    = 0
-stackPopCount PUSH19    = 0
-stackPopCount PUSH20    = 0
-stackPopCount PUSH21    = 0
-stackPopCount PUSH22    = 0
-stackPopCount PUSH23    = 0
-stackPopCount PUSH24    = 0
-stackPopCount PUSH25    = 0
-stackPopCount PUSH26    = 0
-stackPopCount PUSH27    = 0
-stackPopCount PUSH28    = 0
-stackPopCount PUSH29    = 0
-stackPopCount PUSH30    = 0
-stackPopCount PUSH31    = 0
-stackPopCount PUSH32    = 0
-
-{- f0s: System operations -}
-stackPopCount CREATE    = 3
-stackPopCount CALL      = 7
-stackPopCount RETURN    = 2
-stackPopCount SUICIDE   = 1
 
 -- | Convert a byte to an instruction.
 fromOpcode :: Word8 -> Maybe Instruction
@@ -433,3 +330,9 @@ toOpcode CREATE         = 0xf0
 toOpcode CALL           = 0xf1
 toOpcode RETURN         = 0xf2
 toOpcode SUICIDE        = 0xff
+
+pushLen :: Instruction -> Integer
+pushLen i = case toOpcode i of
+        op | op < toOpcode PUSH1  -> undefined
+        op | op > toOpcode PUSH32 -> undefined
+        op                        -> fromIntegral $ 1 + toOpcode PUSH1 - op
