@@ -7,7 +7,7 @@ import Ethereum.Crypto
 import Ethereum.Storage.Trie(zeroRef)
 import Ethereum.State.Transaction
 import Ethereum.State.Account
-import Ethereum.SimpleTypes
+import Ethereum.State.Address
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit
