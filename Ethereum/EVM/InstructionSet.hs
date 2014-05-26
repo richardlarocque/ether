@@ -338,4 +338,4 @@ isPush i = toOpcode i >= toOpcode PUSH1 && toOpcode i <= toOpcode PUSH32
 pushLen :: Instruction -> Integer
 pushLen i = if not $ isPush i
                then undefined
-               else fromIntegral $ 1 + toOpcode PUSH1 - toOpcode i
+               else fromIntegral $ 1 + toOpcode i - toOpcode PUSH1

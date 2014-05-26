@@ -91,10 +91,10 @@ runCodeTest :: [Word8] -> Termination -> Assertion
 runCodeTest c v = assert $ simpleRun c == v
 
 simpleRun :: [Word8] -> Termination
-simpleRun code =
+simpleRun c =
         let ms = initWithGas 10000
             context = initContext
-            ee = testExecutionEnv code
+            ee = testExecutionEnv c
         in runUntilDone context ms ee
 
 runUntilDone :: Context -> MachineState -> ExecutionEnvironment -> Termination

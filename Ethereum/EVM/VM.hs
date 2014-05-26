@@ -18,6 +18,7 @@ import Control.Monad
 import Data.Binary
 import Data.Bits
 import Data.LargeWord
+import qualified Data.Vector as V
 import qualified Data.ByteString.Lazy as BL
 
 import Ethereum.EVM.InstructionSet as E
@@ -28,6 +29,8 @@ import Ethereum.Common
 import Ethereum.State.Address
 import Ethereum.Storage.Context
 import qualified Ethereum.FeeSchedule as F
+
+import Debug.Trace
 
 data Termination = OutOfGasException
                  | InvalidInstruction
@@ -98,7 +101,7 @@ execStep = do op <- nextOp
 nextOp :: ExecMonad Instruction
 nextOp = do ee <- getEE
             ms <- getMachineState
-            if pc ms < (fromIntegral $ clength ee)
+            if pc ms > (fromIntegral $ clength ee)
                then (return STOP) -- Eq. 86.
                else let b = cbyte (fromIntegral $ pc ms) ee
                     in case fromOpcode b of
@@ -189,7 +192,7 @@ runOp MSTORE    = do a <- pop
                      memStoreWord a w
 runOp MSTORE8   = do a <- pop
                      w <- pop
-                     memStoreWord a (lowestByte w)
+                     memStoreByte a w
 runOp SLOAD     = undefined
 runOp SSTORE    = undefined
 runOp JUMP      = pop >>= setPC
@@ -239,7 +242,10 @@ runOp PUSH32    = pushOp PUSH32
 -- f0s: System operations
 runOp CREATE    = undefined
 runOp CALL      = undefined
-runOp RETURN    = normalHalt emptyMemSlice
+runOp RETURN    = do start <- pop
+                     len <- pop
+                     r <- memLoad start len
+                     normalHalt r
 runOp SUICIDE   = normalHalt emptyMemSlice  -- FIXME: not right
 
 updatePC :: Instruction -> ExecMonad ()
@@ -281,6 +287,9 @@ memStore a bs = do ms <- getMachineState
 
 memStoreWord :: Word256 -> Word256 -> ExecMonad ()
 memStoreWord a w = memStore a (toBytes w)
+
+memStoreByte :: Word256 -> Word256 -> ExecMonad ()
+memStoreByte a w = memStore a (V.singleton $ V.last $ toBytes w)
 
 dataLoad :: Word256 -> Word256 -> ExecMonad ByteArray
 dataLoad a len = getEE >>= return . drange (a, len)
