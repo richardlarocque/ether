@@ -14,7 +14,6 @@ Translation of Ethereum Yellow Paper, Proof-of-Concept V, Appendix B
 module Ethereum.EVM.ExecutionEnvironment(
        --ExecutionEnvironment(address,origin,caller,value,gasPrice),
        ExecutionEnvironment(..),
-       startGas,
        crange,
        cbyte,
        clength,
@@ -40,9 +39,6 @@ data ExecutionEnvironment = EE {
 }
 
 type Code = ByteArray
-
-startGas :: ExecutionEnvironment -> Gas
-startGas ee = (value ee) `div` (gasPrice ee)
 
 intRange :: (Word256, Word256) -> (Int, Int)
 intRange (a,b) = (fromIntegral a, fromIntegral b)

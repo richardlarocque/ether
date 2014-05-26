@@ -12,24 +12,17 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 9
 -}
 
 module Ethereum.EVM.MachineState(
-        MachineState,
-        pc,
-        memsize,
-        gas,
+        MachineState(..),
+        initMem,
         setPC,
         incPC,
         addPC,
         getOp,
-        initialState,
         mstore,
         mstorerange,
         mload,
         mloadrange,
         crange,
-        push,
-        pop,
-        popTwo,
-        popThree,
         outOfGas,
         showStack
 ) where
@@ -52,14 +45,8 @@ data MachineState = MS {
         stack :: Stack
 }
 
-initialState :: ExecutionEnvironment -> MachineState
-initialState ee = MS {
-        gas = startGas ee,
-        pc = 0,
-        memory = V.replicate 512 0,
-        memsize = 0,
-        stack = []
-}
+initMem :: ByteArray
+initMem = V.replicate 512 0
 
 mstore :: Word256 -> Word256 -> MachineState -> MachineState
 mstore addr word = (setMem (fromIntegral $ addr) (toBytes word)) . (expandMem (addr+31))
@@ -76,20 +63,6 @@ mloadrange :: Word256 -> Word256 -> MachineState -> (MachineState, ByteArray)
 mloadrange start len  ms = let ms' = expandMem (fromIntegral (start+len)) ms
                            in (ms', getMem (fromIntegral $ start) (fromIntegral len) ms')
 
-push :: Word256 -> MachineState -> MachineState
-push x = stack' ^%= (x:)
-
-pop :: MachineState -> Either RunTimeError (MachineState, Word256)
-pop ms@MS{stack=a:s'} = Right (ms{stack=s'}, a)
-pop _ = Left StackUnderflow
-
-popTwo :: MachineState -> Either RunTimeError (MachineState, (Word256, Word256))
-popTwo ms@MS{stack=a1:a2:s'} = Right (ms{stack=s'}, (a1,a2))
-popTwo _ = Left StackUnderflow
-
-popThree :: MachineState-> Either RunTimeError (MachineState, (Word256, Word256, Word256))
-popThree ms@MS{stack=a1:a2:a3:s'} = Right (ms{stack=s'}, (a1,a2,a3))
-popThree _ = Left StackUnderflow
 
 outOfGas :: MachineState -> Bool
 outOfGas ms = (gas ms) < 0

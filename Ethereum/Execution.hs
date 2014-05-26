@@ -38,7 +38,7 @@ runContractCreation c s n g gp v ini =
             newAcc = Account 0 v nullStateRoot NullCodeHash  -- | Equation 54.
             c' = updateAccount c (newAddr, newAcc)
             ee = ExecutionEnvironment newAddr s gp B.empty s v ini -- | Equation 57-63.
-            case execContractCreation ee of
+            case executeVM ee of
                     Left OutOfGas -> (c, 0)
                     Left (InvalidInstruction (c'', g')) -> (c'', g')
                     Left (StackUnderflow (c'', g')) -> (c'', g')
