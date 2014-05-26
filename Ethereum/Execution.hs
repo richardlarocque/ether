@@ -1,6 +1,9 @@
 module Ethereum.Execution where
 
 import Control.Monad
+import Ethereum.EVM.ExecutionEnvironment
+import Ethereum.EVM.MachineState
+import Ethereum.EVM.VM
 import Ethereum.SimpleTypes
 import Ethereum.Storage.Context
 import Ethereum.State.Address
@@ -26,24 +29,22 @@ checkpointState c t (addr, acc) =
             acc'' = nextNonce acc' in
         updateAccount c (addr, acc'')
 
-runTransaction :: Context -> Address -> Transaction -> Integer -> (Context, Integer)
-runTransaction c addr (T n v gp _gl (Right (ContractCreation ini)) _) g = 
-        runContractCreation c addr n g gp v ini
-runTransaction _ _ _ _ = error "not implemented"
+runTransaction :: Context -> Address -> Transaction -> (Context, Integer)
+runTransaction c addr t@(T n v gp gl (Right (ContractCreation ini)) _) = 
+        runContractCreation c addr n (gl - intrinsicGas t) gp v ini
+runTransaction _ _ _ = error "not implemented"
 
 -- | Equation 49 has a more sensible definition of Lambda than Equation 42.
 runContractCreation :: Context -> Address -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> (Context, Integer)
-runContractCreation c s n g gp v ini =
+runContractCreation c s n g gp v _ini_FIXME =
         let newAddr = generateValidAddress c s n
             newAcc = Account 0 v nullStateRoot NullCodeHash  -- | Equation 54.
             c' = updateAccount c (newAddr, newAcc)
-            ee = ExecutionEnvironment newAddr s gp B.empty s v ini -- | Equation 57-63.
-            case executeVM ee of
-                    Left OutOfGas -> (c, 0)
-                    Left (InvalidInstruction (c'', g')) -> (c'', g')
-                    Left (StackUnderflow (c'', g')) -> (c'', g')
-                    Right ValidHalt (c'', g') _bs -> (c'', g')
-        in (c', 0)
+            -- TODO initialize EE with code properly.
+            ee = EE newAddr s gp emptyByteArray s v emptyByteArray -- | Equation 57-63.
+        in case executeTransaction c' g ee of
+                OutOfGas -> (c, 0)
+                Result c'' ms' _ _ -> (c'', gas ms')
 
 generateValidAddress :: Context -> Address -> Integer -> Address
 generateValidAddress c a n = let a1 = generateAddress a n in validateAddress c a1

@@ -15,6 +15,7 @@ module Ethereum.SimpleTypes (
         Stack,
         Ether,
         ByteArray,
+        emptyByteArray,
         fromEther,
         brange,
         safeBrange,
@@ -40,6 +41,9 @@ type MemSlice = V.Vector Word8
 type Stack = [Word256]
 type Ether = Integer
 type ByteArray = V.Vector Word8
+
+emptyByteArray :: ByteArray
+emptyByteArray = V.empty
 
 fromEther :: Integral a => Ether -> a
 fromEther = fromIntegral

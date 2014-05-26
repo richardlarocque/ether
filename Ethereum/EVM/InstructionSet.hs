@@ -15,6 +15,7 @@ module Ethereum.EVM.InstructionSet(
         Instruction(..),
         fromOpcode,
         toOpcode,
+        isPush,
         pushLen) where
 
 import Data.Word
@@ -331,8 +332,10 @@ toOpcode CALL           = 0xf1
 toOpcode RETURN         = 0xf2
 toOpcode SUICIDE        = 0xff
 
+isPush :: Instruction -> Bool
+isPush i = toOpcode i >= toOpcode PUSH1 && toOpcode i <= toOpcode PUSH32
+
 pushLen :: Instruction -> Integer
-pushLen i = case toOpcode i of
-        op | op < toOpcode PUSH1  -> undefined
-        op | op > toOpcode PUSH32 -> undefined
-        op                        -> fromIntegral $ 1 + toOpcode PUSH1 - op
+pushLen i = if not $ isPush i
+               then undefined
+               else fromIntegral $ 1 + toOpcode PUSH1 - toOpcode i

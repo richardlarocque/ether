@@ -18,7 +18,6 @@ import Control.Monad
 import Data.Binary
 import Data.Bits
 import Data.LargeWord
-import qualified Data.Vector as V
 import qualified Data.ByteString.Lazy as BL
 
 import Ethereum.EVM.InstructionSet as E
@@ -29,34 +28,6 @@ import Ethereum.Common
 import Ethereum.State.Address
 import Ethereum.Storage.Context
 import qualified Ethereum.FeeSchedule as F
-
-{-
-data RunTimeError = OutOfGas
-                  | StackUnderflow
-                  | InvalidInstruction
-
-data RunResult = OutOfGasHalt
-                 | ExceptionHalt Context Integer
-                 | NormalHalt Context Integer
-                 deriving (Show,Eq)
-                 -}
-
-{-
-data ExecMonad a = OutOfGas
-                 | ExceptionHalt Context MachineState
-                 | NormalHalt Context MachineState MemSlice
-                 | Step { runStep :: (Context, MachineState, ExecutionEnvironment) -> (a, (Context, MachineState, ExecutionEnvironment)) }
-
-instance Monad (ExecMonad) where
-        return a = Step $ \(c, ms, ee) -> (a, (c, ms, ee))
-        m >>= k = case m of
-                (Step rs) -> \s ->
-                        let (a, s') = rs s in
-                        case (k a) of 
-                                (Step rs') -> Step $ rs' s'
-                                exceptional -> exceptional
-                exceptional -> exceptional
-                -}
 
 data Termination = OutOfGasException
                  | ExceptionHalt
@@ -104,79 +75,96 @@ stackUnderflow = ExecMonad $ \s -> (Left ExceptionHalt, s)
 normalHalt :: MemSlice -> ExecMonad ()
 normalHalt bs = ExecMonad $ \s -> (Left $ NormalHalt bs, s)
 
-execute :: Context -> MachineState -> ExecutionEnvironment -> ExecResult
-execute c ms ee = case runState execStep (c, ms, ee) of
-        (Left OutOfGasException, (c', ms', ee')) -> OutOfGas
+executeTransaction :: Context -> Integer -> ExecutionEnvironment -> ExecResult
+executeTransaction c g ee = execute' c (MS g 0 initMem 0 []) ee
+
+execute' :: Context -> MachineState -> ExecutionEnvironment -> ExecResult
+execute' c ms ee = case runState execStep (c, ms, ee) of
+        (Left OutOfGasException, _)              -> OutOfGas
         (Left ExceptionHalt, (c', ms', ee'))     -> Result c' ms' ee' Nothing
         (Left (NormalHalt bs), (c', ms', ee'))   -> Result c' ms' ee' (Just bs)
-        (Right (), (c', ms', ee'))               -> execute c' ms' ee'
+        (Right (), (c', ms', ee'))               -> execute' c' ms' ee'
 
 execStep :: ExecMonad ()
-execStep = nextOp >>= runOp
+execStep = do op <- nextOp
+              chargeOpFee op
+              runOp op
+              updatePC op
+           -- checkGas here...
 
 nextOp :: ExecMonad Instruction
 nextOp = do ee <- getEE
             ms <- getMachineState
-            if (pc ms < (fromIntegral $ clength ee))
+            if pc ms < (fromIntegral $ clength ee)
                then (return STOP) -- Eq. 86.
                else let b = cbyte (fromIntegral $ pc ms) ee
                     in case fromOpcode b of
                         Nothing -> invalidInstruction b
                         Just w -> return w
 
+chargeOpFee :: Instruction -> ExecMonad ()
+chargeOpFee SSTORE      = undefined -- FIXME: handle this
+chargeOpFee CALL        = undefined -- FIXME: handle this
+chargeOpFee CREATE      = undefined -- FIXME: handle this
+chargeOpFee SHA3        = chargeFee F.sha3
+chargeOpFee SLOAD       = undefined -- FIXME: handle this
+chargeOpFee BALANCE     = chargeFee F.balance
+chargeOpFee STOP        = chargeFee F.stop
+chargeOpFee SUICIDE     = chargeFee F.suicide
+chargeOpFee _           = chargeFee F.step
+
 runOp :: Instruction -> ExecMonad ()
 -- 0s: Stop and Arithmetic Operations
 runOp STOP    = normalHalt emptyMemSlice
 
-runOp ADD     = stepFee >> stackBinOp (+)
-runOp MUL     = stepFee >> stackBinOp (*)
-runOp SUB     = stepFee >> stackBinOp (-)
-runOp DIV     = stepFee >> stackBinOp safeDiv
-runOp SDIV    = stepFee >> stackBinOp (withSign safeDiv)
-runOp MOD     = stepFee >> stackBinOp mod
-runOp SMOD    = stepFee >> stackBinOp (withSign mod)
-runOp EXP     = stepFee >> stackBinOp (^)
-runOp NEG     = stepFee >> stackUnOp ((1+).complement)
-runOp E.LT    = stepFee >> stackBinOp (unbool2 (<))
-runOp E.GT    = stepFee >> stackBinOp (unbool2 (>))
-runOp SLT     = stepFee >> stackBinOp (unbool2 (\a b -> (a - b) `testBit` 255))
-runOp SGT     = stepFee >> stackBinOp (unbool2 (\a b -> (b - a) `testBit` 255))
-runOp E.EQ    = stepFee >> stackBinOp (unbool2 (==))
-runOp NOT     = stepFee >> stackUnOp (unbool2 (==) 0)
-runOp AND     = stepFee >> stackBinOp (.&.)
-runOp OR      = stepFee >> stackBinOp (.|.)
-runOp XOR     = stepFee >> stackBinOp xor
-runOp BYTE    = stepFee >> stackBinOp (\a b -> fromIntegral $ byteIndex a b)
+runOp ADD     = stackBinOp (+)
+runOp MUL     = stackBinOp (*)
+runOp SUB     = stackBinOp (-)
+runOp DIV     = stackBinOp safeDiv
+runOp SDIV    = stackBinOp (withSign safeDiv)
+runOp MOD     = stackBinOp mod
+runOp SMOD    = stackBinOp (withSign mod)
+runOp EXP     = stackBinOp (^)
+runOp NEG     = stackUnOp ((1+).complement)
+runOp E.LT    = stackBinOp (unbool2 (<))
+runOp E.GT    = stackBinOp (unbool2 (>))
+runOp SLT     = stackBinOp (unbool2 (\a b -> (a - b) `testBit` 255))
+runOp SGT     = stackBinOp (unbool2 (\a b -> (b - a) `testBit` 255))
+runOp E.EQ    = stackBinOp (unbool2 (==))
+runOp NOT     = stackUnOp (unbool2 (==) 0)
+runOp AND     = stackBinOp (.&.)
+runOp OR      = stackBinOp (.|.)
+runOp XOR     = stackBinOp xor
+runOp BYTE    = stackBinOp (\a b -> fromIntegral $ byteIndex a b)
 
 -- 20s: SHA3
-runOp SHA3    = do chargeFee F.sha3
-                   a <- pop
+runOp SHA3    = do a <- pop
                    len <- pop
                    bytes <- memLoad a len
                    push (hashBytes $ memToByteString bytes)
 
 -- 30s: Environment
-runOp ADDRESS         = stepFee >> getEE >>= push . fromAddress . address
-runOp BALANCE         = chargeFee F.balance >> undefined
-runOp ORIGIN          = stepFee >> getEE >>= push . fromAddress . origin
-runOp CALLER          = stepFee >> getEE >>= push . fromAddress . caller
-runOp CALLVALUE       = stepFee >> getEE >>= push . fromEther . value
-runOp CALLDATALOAD    = stepFee >> do a <- pop
-                                      v <- dataLoad a 32
-                                      push (fromBytes v)
-runOp CALLDATASIZE    = stepFee >> dataLength >>= push . fromIntegral
-runOp CALLDATACOPY    = stepFee >> do maddr <- pop
-                                      daddr <- pop
-                                      len <- pop
-                                      bs <- dataLoad daddr len
-                                      memStore maddr bs
-runOp CODESIZE        = stepFee >> getEE >>= push . fromIntegral . clength
-runOp CODECOPY        = stepFee >> do maddr <- pop
-                                      caddr <- pop
-                                      len <- pop
-                                      bs <- codeLoad caddr len
-                                      memStore maddr bs
-runOp GASPRICE        = stepFee >> getEE >>= push . fromEther . gasPrice
+runOp ADDRESS         = getEE >>= push . fromAddress . address
+runOp BALANCE         = undefined
+runOp ORIGIN          = getEE >>= push . fromAddress . origin
+runOp CALLER          = getEE >>= push . fromAddress . caller
+runOp CALLVALUE       = getEE >>= push . fromEther . value
+runOp CALLDATALOAD    = do a <- pop
+                           v <- dataLoad a 32
+                           push (fromBytes v)
+runOp CALLDATASIZE    = dataLength >>= push . fromIntegral
+runOp CALLDATACOPY    = do maddr <- pop
+                           daddr <- pop
+                           len <- pop
+                           bs <- dataLoad daddr len
+                           memStore maddr bs
+runOp CODESIZE        = getEE >>= push . fromIntegral . clength
+runOp CODECOPY        = do maddr <- pop
+                           caddr <- pop
+                           len <- pop
+                           bs <- codeLoad caddr len
+                           memStore maddr bs
+runOp GASPRICE        = getEE >>= push . fromEther . gasPrice
 
 -- 40s: Block Information
 runOp PREVHASH        = undefined
@@ -187,29 +175,29 @@ runOp DIFFICULTY      = undefined
 runOp GASLIMIT        = undefined
 
 -- 50s: Stack, Memory, Storage and Flow Operations
-runOp POP       = stepFee >> do { pop; return () }
-runOp DUP       = stepFee >> do { x <- pop; push x; push x }
-runOp SWAP      = stepFee >> do { x <- pop; y <- pop; push x; push y }
-runOp MLOAD     = stepFee >> do x <- pop
-                                w <- memLoadWord x
-                                push w
-runOp MSTORE    = stepFee >> do a <- pop
-                                w <- pop
-                                memStoreWord a w
-runOp MSTORE8   = stepFee >> do a <- pop
-                                w <- pop
-                                memStoreWord a (lowestByte w)
-runOp SLOAD     = stepFee >> undefined
-runOp SSTORE    = stepFee >> undefined
-runOp JUMP      = stepFee >> pop >>= setPC
-runOp JUMPI     = stepFee >> do a <- pop 
-                                c <- pop
-                                if (c == 0)
-                                   then setPC a
-                                   else incrementPC
-runOp PC        = stepFee >> getMachineState >>= push . fromIntegral . pc
-runOp MSIZE     = stepFee >> getMachineState >>= push . fromIntegral . memsize
-runOp GAS       = stepFee >> getMachineState >>= push . fromIntegral . gas
+runOp POP       = do { _ <- pop; return () }
+runOp DUP       = do { x <- pop; push x; push x }
+runOp SWAP      = do { x <- pop; y <- pop; push x; push y }
+runOp MLOAD     = do x <- pop
+                     w <- memLoadWord x
+                     push w
+runOp MSTORE    = do a <- pop
+                     w <- pop
+                     memStoreWord a w
+runOp MSTORE8   = do a <- pop
+                     w <- pop
+                     memStoreWord a (lowestByte w)
+runOp SLOAD     = undefined
+runOp SSTORE    = undefined
+runOp JUMP      = pop >>= setPC
+runOp JUMPI     = do a <- pop 
+                     c <- pop
+                     if (c == 0)
+                        then setPC a
+                        else incrementPC
+runOp PC        = getMachineState >>= push . fromIntegral . pc
+runOp MSIZE     = getMachineState >>= push . fromIntegral . memsize
+runOp GAS       = getMachineState >>= push . fromIntegral . gas
 
 -- 60s and 70s: Push Operations
 runOp PUSH1     = pushOp PUSH1
@@ -250,6 +238,12 @@ runOp CREATE    = undefined
 runOp CALL      = undefined
 runOp RETURN    = normalHalt emptyMemSlice
 runOp SUICIDE   = normalHalt emptyMemSlice  -- FIXME: not right
+
+updatePC :: Instruction -> ExecMonad ()
+updatePC JUMP         = return ()  -- Handled it earlier.
+updatePC JUMPI        = return ()  -- Handled it earlier.
+updatePC p | isPush p = addPC (pushLen p + 1)
+updatePC _            = incrementPC
 
 stepFee :: ExecMonad ()
 stepFee = return ()
@@ -314,9 +308,12 @@ setPC :: Word256 -> ExecMonad ()
 setPC pc' = do ms <- getMachineState
                putMachineState ms{pc=(fromIntegral pc')}
 
+addPC :: Integer -> ExecMonad ()
+addPC x = do ms <- getMachineState
+             putMachineState ms{pc=(pc ms)+x}
+
 incrementPC :: ExecMonad ()
-incrementPC = do ms <- getMachineState
-                 putMachineState ms{pc=(pc ms)+1}
+incrementPC = addPC 1
 
 -- Arithmetic helpers.
 
@@ -355,228 +352,3 @@ byteIndex i w = if i < 32
 
 lowestByte :: Integral a => Word256 -> a
 lowestByte = fromIntegral . (0xff .&.)
-
-{-
-
-executeVM :: Context -> Integer -> ExecutionEnvironment
-executeVM c g ee =
-        let ms = MachineState g 0 initMem 0 []
-        in (execStep c ms ee)
-
-execStep :: Context -> MachineState -> ExecutionEnvironment
-execStep c ms =
-        case getOp ee ms of
-                Nothing         -> ExceptionHalt c ms ee
-
-                -- TODO: These should update some state...
-                Just STOP       -> NormalHalt c ms ee emptyMemSlice
-                Just SUICIDE    -> NormalHalt c ms ee emptyMemSlice
-
-                Just RETURN     -> NormalHalt c ms ee emptyMemSlice -- FIXME very wrong.
-                        {-
-                        do (ms', (start, len)) <- popTwo ms
-                                      return $ snd $ mloadrange start len ms'
-                                      -}
-                Just w          -> runStep w ee ms
-
-runStep :: Instruction -> Context -> MachineState -> ExecutionEnvironment -> RunResult
-runStep w c ms ee = case execOp w ee ms of
-
-
-
-step :: Instruction -> ExecutionEnvironment -> MachineState -> Either RunTimeError MemSlice
-step w ee ms = do ms' <- execOp w ee ms
-                  ms'' <- updatePC w ms'
-                  gasCheck ms''
-                  execNext ee ms''
-
-gasCheck :: MachineState -> Either RunTimeError ()
-gasCheck ms = if outOfGas ms
-                 then Left OutOfGas
-                 else Right ()
-
-updatePC :: Instruction -> MachineState -> Either RunTimeError MachineState
-updatePC w = case w of
-        JUMP    -> withArg setPC
-        JUMPI   -> withTwoArgs (\a c -> if c == 0
-                                           then setPC a
-                                           else incPC)
-        -- PUSHes also affect PC, but they still need a +1 here.
-        _       -> return.incPC
-
-execOp :: Instruction -> ExecutionEnvironment -> MachineState -> Either RunTimeError MachineState
-execOp w ee = case w of
-       {- 0s: Stop and Arithmetic Operations -}
-        STOP    -> error "halting operations handled elsewhere"
-        ADD     -> stackBinOp (+)
-        MUL     -> stackBinOp (*)
-        SUB     -> stackBinOp (-)
-        DIV     -> stackBinOp safeDiv
-        SDIV    -> stackBinOp (withSign safeDiv)
-        MOD     -> stackBinOp mod
-        SMOD    -> stackBinOp (withSign mod)
-        EXP     -> stackBinOp (^)
-        NEG     -> stackUnOp ((1+).complement)
-        E.LT    -> stackBinOp (unbool2 (<))
-        E.GT    -> stackBinOp (unbool2 (>))
-        SLT     -> stackBinOp (unbool2 (\a b -> (a - b) `testBit` 255))
-        SGT     -> stackBinOp (unbool2 (\a b -> (b - a) `testBit` 255))
-        E.EQ    -> stackBinOp (unbool2 (==))
-        NOT     -> stackUnOp (unbool2 (==) 0)
-        AND     -> stackBinOp (.&.)
-        OR      -> stackBinOp (.|.)
-        XOR     -> stackBinOp xor
-        BYTE    -> stackBinOp (\a b -> fromIntegral $ byteIndex a b)
-
-        {- 20s: SHA3 -}
-        SHA3    -> withTwoArgs $ \a len ms ->
-                let (ms', bytes) = mloadrange a len ms
-                    hashed = hashBytes $ memToByteString bytes
-                in push hashed ms'
-
-        {- 30s: Environment -}
-        ADDRESS         -> noArgs ((push.fromAddress) (address ee))
-        BALANCE         -> error "not implemented"
-        ORIGIN          -> noArgs ((push.fromAddress) (origin ee))
-        CALLER          -> noArgs ((push.fromAddress) (caller ee))
-        CALLVALUE       -> noArgs ((push.fromEther) (value ee))
-        CALLDATALOAD    -> withArg (\a -> (push.fromBytes) $ drange (a,32) ee)
-        CALLDATASIZE    -> noArgs ((push.fromIntegral) $ dlength ee)
-        CALLDATACOPY    -> withThreeArgs $
-                \maddr daddr len -> let bytes = drange (daddr, len) ee
-                                    in mstorerange maddr bytes
-        CODESIZE        -> noArgs ((push.fromIntegral) $ clength ee)
-        CODECOPY        -> withThreeArgs $
-                \maddr caddr len -> let bytes = crange (caddr, len) ee
-                                    in mstorerange maddr bytes
-
-        GASPRICE        -> noArgs ((push.fromEther) (gasPrice ee))
-
-        {- 40s: Block Information -}
-        PREVHASH        -> error "not implemented"
-        COINBASE        -> error "not implemented"
-        TIMESTAMP       -> error "not implemented"
-        NUMBER          -> error "not implemented"
-        DIFFICULTY      -> error "not implemented"
-        GASLIMIT        -> error "not implemented"
-
-        {- 50s: Stack, Memory, Storage and Flow Operations -}
-        POP             -> (liftM fst.pop)
-        DUP             -> withArg (\x -> push x . push x )
-        SWAP            -> withTwoArgs (\a b -> push b . push a )
-        MLOAD           -> withArg (\x ms' -> let (ms'', v) = mload x ms' in push v ms'')
-        MSTORE          -> withTwoArgs mstore
-        MSTORE8         -> withTwoArgs (\a v -> mstorerange a (V.fromList [byteIndex 31 v]))
-        SLOAD           -> error "not implemented"
-        SSTORE          -> error "not implemented"
-        JUMP            -> return
-        JUMPI           -> return
-        PC              -> noArgs (\ms' -> push ((fromIntegral.pc) ms') ms')
-        MSIZE           -> noArgs (\ms' -> push ((fromIntegral.memsize) ms') ms')
-        GAS             -> noArgs (\ms' -> push ((fromIntegral.gas) ms') ms')
-
-        {- 60s and 70s: Push Operations -}
-        PUSH1   -> pushOp  1 ee
-        PUSH2   -> pushOp  2 ee
-        PUSH3   -> pushOp  3 ee
-        PUSH4   -> pushOp  4 ee
-        PUSH5   -> pushOp  5 ee
-        PUSH6   -> pushOp  6 ee
-        PUSH7   -> pushOp  7 ee
-        PUSH8   -> pushOp  8 ee
-        PUSH9   -> pushOp  9 ee
-        PUSH10  -> pushOp 10 ee
-        PUSH11  -> pushOp 11 ee
-        PUSH12  -> pushOp 12 ee
-        PUSH13  -> pushOp 13 ee
-        PUSH14  -> pushOp 14 ee
-        PUSH15  -> pushOp 15 ee
-        PUSH16  -> pushOp 16 ee
-        PUSH17  -> pushOp 17 ee
-        PUSH18  -> pushOp 18 ee
-        PUSH19  -> pushOp 19 ee
-        PUSH20  -> pushOp 20 ee
-        PUSH21  -> pushOp 21 ee
-        PUSH22  -> pushOp 22 ee
-        PUSH23  -> pushOp 23 ee
-        PUSH24  -> pushOp 24 ee
-        PUSH25  -> pushOp 25 ee
-        PUSH26  -> pushOp 26 ee
-        PUSH27  -> pushOp 27 ee
-        PUSH28  -> pushOp 28 ee
-        PUSH29  -> pushOp 29 ee
-        PUSH30  -> pushOp 30 ee
-        PUSH31  -> pushOp 31 ee
-        PUSH32  -> pushOp 32 ee
-
-        {- f0s: System operations -}
-        CREATE  -> error "not implemented"
-        CALL    -> error "not implemented"
-        RETURN  -> error "halting operations are handled elsewhere"
-        SUICIDE -> error "halting operations are handled elsewhere"
-
-safeDiv ::  Integral a => a -> a -> a
-safeDiv _ 0 = 0
-safeDiv a b = a `div` b
-
-unbool2 ::  (Word256 -> Word256 -> Bool) -> Word256 -> Word256 -> Word256
-unbool2 f a b =  if f a b then 1 else 0
-
-byteIndex ::  Word256 -> Word256 -> Word8
-byteIndex i w = if i < 32
-                   then extractByte w i
-                   else 0
-
--- Check the sign bit
-isNeg ::  Word256 -> Bool
-isNeg = flip testBit 255
-
--- Two's complement
-neg ::  Word256 -> Word256
-neg = (1+).complement
-
--- Adding signs to div and mod
-withSign ::  (Word256 -> Word256 -> Word256) -> Word256 -> Word256 -> Word256
-withSign f a b = let (aNeg, a') = unsign a
-                     (bNeg, b') = unsign b
-                 in resign aNeg bNeg $ f a' b'
-                    where unsign x = if isNeg x
-                                        then (True, neg x)
-                                        else (False, x)
-                          resign s1 s2 x = if s1 `xor` s2 then neg x else x
-
-extractByte :: (Integral b) => Word256 -> Word256 -> b
-extractByte b i = fromIntegral $ encode b `BL.index` fromIntegral i
-
-noArgs :: (MachineState -> MachineState) -> MachineState -> Either RunTimeError MachineState
-noArgs f = return.f
-
-withArg :: (Word256 -> MachineState -> MachineState) ->
-        MachineState -> Either RunTimeError MachineState
-withArg f ms = do (ms', arg) <- pop ms
-                  return $ f arg ms'
-
-withTwoArgs :: (Word256 -> Word256 -> MachineState -> MachineState) ->
-        MachineState -> Either RunTimeError MachineState
-withTwoArgs f ms = do (ms', (arg1, arg2)) <- popTwo ms
-                      return $ f arg1 arg2 ms'
-
-withThreeArgs :: (Word256 -> Word256 -> Word256 -> MachineState -> MachineState) ->
-        MachineState -> Either RunTimeError MachineState
-withThreeArgs f ms = do (ms', (arg1, arg2, arg3)) <- popThree ms
-                        return $ f arg1 arg2 arg3 ms'
-
-stackBinOp :: (Word256 -> Word256 -> Word256) ->
-        MachineState -> Either RunTimeError MachineState
-stackBinOp f = withTwoArgs (\a b -> push (f a b))
-
-stackUnOp :: (Word256 -> Word256) -> MachineState -> Either RunTimeError MachineState
-stackUnOp f = withArg (push . f)
-
-pushOp :: Instruction -> ExecutionEnvironment -> MachineState -> Either RunTimeError MachineState
-pushOp l _ _ | l > 32 = error "Invalid push length argument"
-pushOp l ee ms = let s = fromIntegral $ pc ms + 1
-                     v = fromBytes $ crange (s, l) ee
-                 in return $ (addPC l . push v) ms
-
--}
