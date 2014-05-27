@@ -17,6 +17,7 @@ import Control.Applicative (Applicative(..))
 import Control.Monad
 import Data.Binary
 import Data.Bits
+import Data.Maybe
 import Data.LargeWord
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -27,6 +28,7 @@ import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.SimpleTypes
 import Ethereum.Common
 import Ethereum.State.Address
+import Ethereum.State.Account
 import Ethereum.Storage.Context
 import qualified Ethereum.FeeSchedule as F
 
@@ -78,6 +80,9 @@ stackUnderflow = ExecMonad $ \s -> (Left StackUnderflow, s)
 normalHalt :: B.ByteString -> ExecMonad ()
 normalHalt bs = ExecMonad $ \s -> (Left $ NormalHalt bs, s)
 
+outOfGasException :: ExecMonad ()
+outOfGasException = ExecMonad $ (\s -> (Left OutOfGasException, s))
+
 executeCode :: Context -> Integer -> ExecutionEnvironment -> ExecResult
 executeCode c g ee = execute' c (MS g 0 initMem 0 []) ee
 
@@ -94,7 +99,6 @@ execStep = do op <- nextOp
               chargeOpFee op
               runOp op
               updatePC op
-           -- checkGas here...
 
 nextOp :: ExecMonad Instruction
 nextOp = do ee <- getEE
@@ -149,7 +153,9 @@ runOp SHA3    = do a <- pop
 
 -- 30s: Environment
 runOp ADDRESS         = getEE >>= push . fromAddress . address
-runOp BALANCE         = undefined
+runOp BALANCE         = do c <- getContext
+                           addr <- getEE >>= return . address
+                           push $ fromMaybe 0 (getAccount c addr >>= return . fromIntegral . balance)
 runOp ORIGIN          = getEE >>= push . fromAddress . origin
 runOp CALLER          = getEE >>= push . fromAddress . caller
 runOp CALLVALUE       = getEE >>= push . fromEther . value
@@ -256,7 +262,11 @@ stepFee :: ExecMonad ()
 stepFee = return ()
 
 chargeFee :: Integer -> ExecMonad ()
-chargeFee _ = return ()
+chargeFee f = do ms <- getMachineState
+                 let g' = gas ms - f
+                 let ms' = ms{gas=g'}
+                 when (outOfGas ms') outOfGasException
+                 putMachineState ms'
 
 pop :: ExecMonad Word256
 pop = do ms <- getMachineState

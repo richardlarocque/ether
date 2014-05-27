@@ -17,8 +17,8 @@ module Ethereum.FeeSchedule where
 step, stop, suicide, sha3, sload, sstore, balance, create, call :: Integer
 memory, txdata, transaction :: Integer
 
-step = 0
-stop = 1
+step = 1
+stop = 0
 suicide = 0
 sha3 = 20
 sload = 20

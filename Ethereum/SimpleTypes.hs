@@ -30,8 +30,6 @@ import Data.LargeWord
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 
-import Debug.Trace
-
 -- TODO: Remove a bunch of these dumb definitions.
 type Gas = Integer
 type Stack = [Word256]
@@ -50,7 +48,7 @@ safeBrange (start, len) bs = let bufEnd = blength bs
                                  prefix = if start >= bufEnd
                                              then B.empty
                                              else brange (start, min len (bufEnd-start)) bs
-                             in traceShow (prefix, suffix) $ prefix `B.append` suffix
+                             in prefix `B.append` suffix
 
 bbyte :: Int -> B.ByteString -> Word8
 bbyte i bs = bs `B.index` i

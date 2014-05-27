@@ -6,7 +6,6 @@ import Ethereum.Common
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.MachineState
 import Ethereum.EVM.VM
-import Ethereum.SimpleTypes
 import Ethereum.Storage.Context
 import Ethereum.State.Address
 import Ethereum.State.Account as A

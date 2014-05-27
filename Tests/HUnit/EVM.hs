@@ -10,6 +10,7 @@ import Test.HUnit
 
 import Ethereum.Storage.Context
 import Ethereum.State.Address
+import Ethereum.State.Account
 import Ethereum.EVM.MachineState
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.InstructionSet as E
@@ -59,8 +60,11 @@ basicMstore xs = xs ++ p1 0 ++ [ toOpcode MSTORE ]
 basicReturn :: [Word8]  -> [Word8]
 basicReturn xs = (basicMstore xs) ++ p1 32 ++ p1 0 ++ [ toOpcode RETURN ]
 
-ownAddr ::  Address
-ownAddr = A 0xAAAA
+ownerAddr ::  Address
+ownerAddr = A 0xAAAA
+
+ownerAccount :: Account
+ownerAccount = Account 10 1337 nullStateRoot NullCodeHash
 
 originAddr ::  Address
 originAddr = A 0x0011
@@ -79,7 +83,7 @@ gasPriceValue = 1
 
 testExecutionEnv :: [Word8] -> ExecutionEnvironment
 testExecutionEnv is =
-  EE { address=ownAddr,
+  EE { address=ownerAddr,
        origin=originAddr,
        gasPrice=gasPriceValue,
        input=inputData,
@@ -90,10 +94,16 @@ testExecutionEnv is =
 runCodeTest :: [Word8] -> Termination -> Assertion
 runCodeTest c v = assert $ simpleRun c == v
 
+testContext :: Context
+testContext =
+        let c0 = initContext
+            c1 = updateAccount c0 (ownerAddr, ownerAccount)
+        in c1
+
 simpleRun :: [Word8] -> Termination
 simpleRun c =
         let ms = initWithGas 10000
-            context = initContext
+            context = testContext
             ee = testExecutionEnv c
         in runUntilDone context ms ee
 
@@ -161,7 +171,8 @@ tests = [
         testGroup "Halts and Exceptions" [ 
                 testCase "invalidInstruction" $ runCodeTest [0xfa] (InvalidInstruction),
                 testCase "stackUnderflow" $ runCodeTest (op ADD) (StackUnderflow),
-                testCase "stop" $ runCodeTest (op STOP) (NormalHalt emptyMemSlice)
+                testCase "stop" $ runCodeTest (op STOP) (NormalHalt emptyMemSlice),
+                testCase "outOfGas" $ runCodeTest (p32 0 ++ op JUMP) OutOfGasException
                 ],
         testGroup "Unary Operations" [
                 unOpTest NEG    5 (twosComp 5),
@@ -224,8 +235,8 @@ tests = [
                 sha3Test "()" [] 89477152217924674838424037953991966239322087453347756267410168184682657981552
                 ],
         testGroup "environment" [
-                opTest ADDRESS (fromAddress ownAddr),
-                -- opTest BALANCE -- FIXME
+                opTest ADDRESS (fromAddress ownerAddr),
+                opTest BALANCE (fromIntegral $ balance ownerAccount),
                 opTest ORIGIN (fromAddress originAddr),
                 opTest CALLER (fromAddress callerAddr),
                 opTest CALLVALUE (fromInteger callValue),
