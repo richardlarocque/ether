@@ -18,7 +18,7 @@ import Control.Monad
 import Data.Binary
 import Data.Bits
 import Data.LargeWord
-import qualified Data.Vector as V
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 
 import Ethereum.EVM.InstructionSet as E
@@ -30,16 +30,14 @@ import Ethereum.State.Address
 import Ethereum.Storage.Context
 import qualified Ethereum.FeeSchedule as F
 
-import Debug.Trace
-
 data Termination = OutOfGasException
                  | InvalidInstruction
                  | StackUnderflow
-                 | NormalHalt MemSlice
+                 | NormalHalt B.ByteString
                  deriving (Show, Eq)
 
 data ExecResult = OutOfGas
-                | Result Context MachineState ExecutionEnvironment (Maybe MemSlice)
+                | Result Context MachineState ExecutionEnvironment (Maybe B.ByteString)
 
 data ExecMonad a = ExecMonad { runState :: (Context, MachineState, ExecutionEnvironment) ->
         (Either Termination a, (Context, MachineState, ExecutionEnvironment)) }
@@ -77,11 +75,11 @@ invalidInstruction _b = ExecMonad $ \s -> (Left InvalidInstruction, s)
 stackUnderflow :: ExecMonad a
 stackUnderflow = ExecMonad $ \s -> (Left StackUnderflow, s)
 
-normalHalt :: MemSlice -> ExecMonad ()
+normalHalt :: B.ByteString -> ExecMonad ()
 normalHalt bs = ExecMonad $ \s -> (Left $ NormalHalt bs, s)
 
-executeTransaction :: Context -> Integer -> ExecutionEnvironment -> ExecResult
-executeTransaction c g ee = execute' c (MS g 0 initMem 0 []) ee
+executeCode :: Context -> Integer -> ExecutionEnvironment -> ExecResult
+executeCode c g ee = execute' c (MS g 0 initMem 0 []) ee
 
 execute' :: Context -> MachineState -> ExecutionEnvironment -> ExecResult
 execute' c ms ee = case runState execStep (c, ms, ee) of
@@ -272,7 +270,7 @@ push x = do ms <- getMachineState
             let s = stack ms
             putMachineState ms{stack=x:s}
 
-memLoad :: Word256 -> Word256 -> ExecMonad ByteArray
+memLoad :: Word256 -> Word256 -> ExecMonad B.ByteString
 memLoad a len = do ms <- getMachineState
                    let (ms', bytes) = mloadrange a len ms
                    putMachineState ms'
@@ -281,7 +279,7 @@ memLoad a len = do ms <- getMachineState
 memLoadWord :: Word256 -> ExecMonad Word256
 memLoadWord a = memLoad a 32 >>= return . fromBytes
 
-memStore :: Word256 -> ByteArray -> ExecMonad ()
+memStore :: Word256 -> B.ByteString -> ExecMonad ()
 memStore a bs = do ms <- getMachineState
                    putMachineState $ mstorerange a bs ms
 
@@ -289,15 +287,15 @@ memStoreWord :: Word256 -> Word256 -> ExecMonad ()
 memStoreWord a w = memStore a (toBytes w)
 
 memStoreByte :: Word256 -> Word256 -> ExecMonad ()
-memStoreByte a w = memStore a (V.singleton $ V.last $ toBytes w)
+memStoreByte a w = memStore a (B.singleton $ B.last $ toBytes w)
 
-dataLoad :: Word256 -> Word256 -> ExecMonad ByteArray
+dataLoad :: Word256 -> Word256 -> ExecMonad B.ByteString
 dataLoad a len = getEE >>= return . drange (a, len)
 
 dataLength :: ExecMonad Int
 dataLength = getEE >>= return . dlength
 
-codeLoad :: Word256 -> Word256 -> ExecMonad ByteArray
+codeLoad :: Word256 -> Word256 -> ExecMonad B.ByteString
 codeLoad a len = getEE >>= return . crange (a, len)
 
 stackBinOp :: (Word256 -> Word256 -> Word256) -> ExecMonad ()

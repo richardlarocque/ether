@@ -23,6 +23,7 @@ module Ethereum.EVM.ExecutionEnvironment(
 
 import Data.Word
 import Data.LargeWord
+import Data.ByteString as B
 import Ethereum.State.Address
 
 import Ethereum.SimpleTypes
@@ -31,29 +32,27 @@ import Ethereum.SimpleTypes
 data ExecutionEnvironment = EE {
         address :: Address,
         origin :: Address,
-        gasPrice :: Ether,
-        input :: ByteArray,
+        gasPrice :: Integer,
+        input :: B.ByteString,
         caller :: Address,
-        value :: Ether,
-        code :: Code
+        value :: Integer,
+        code :: B.ByteString
 }
-
-type Code = ByteArray
 
 intRange :: (Word256, Word256) -> (Int, Int)
 intRange (a,b) = (fromIntegral a, fromIntegral b)
 
-crange :: (Word256, Word256) -> ExecutionEnvironment -> ByteArray
-crange range = (safeBrange (intRange range)).code
+crange :: (Word256, Word256) -> ExecutionEnvironment -> B.ByteString
+crange range = safeBrange (intRange range) . code
 
 cbyte :: Word256 -> ExecutionEnvironment -> Word8
-cbyte i = ((safeBbyte.fromIntegral) i).code
+cbyte i = (safeBbyte.fromIntegral) i . code
 
 clength :: ExecutionEnvironment -> Int
 clength = blength.code
 
-drange :: (Word256, Word256) -> ExecutionEnvironment -> ByteArray
-drange range = (safeBrange (intRange range)).input
+drange :: (Word256, Word256) -> ExecutionEnvironment -> B.ByteString
+drange range = safeBrange (intRange range) . input
 
 dlength :: ExecutionEnvironment -> Int
 dlength = blength.input

@@ -98,7 +98,7 @@ deref tr =
                 TreeHash h -> do 
                         s <- ask
                         let bs = fromMaybe (error "lookup failed") (load h s) 
-                        return $ runGet get bs
+                        return $ runGet get (L.fromStrict bs)
                 Serialized bs -> return $ runGet get (L.fromStrict bs)
 
 -----
@@ -143,7 +143,7 @@ lookup tr k = do t <- deref tr
 storeTree :: MapStorage -> Tree -> MapStorage
 storeTree s t = case tref t of
         TreeHash 0 -> s
-        TreeHash k -> store k (encode t) s
+        TreeHash k -> store k (L.toStrict $ encode t) s
         _ -> s
 
 -- Helpers

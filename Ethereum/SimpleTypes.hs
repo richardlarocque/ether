@@ -11,11 +11,8 @@ Portability :  non-portable (Unknown portability)
 
 module Ethereum.SimpleTypes (
         Gas,
-        MemSlice,
         Stack,
         Ether,
-        ByteArray,
-        emptyByteArray,
         fromEther,
         brange,
         safeBrange,
@@ -29,58 +26,55 @@ module Ethereum.SimpleTypes (
 ) where
 
 import Data.Binary
-import Data.Maybe
 import Data.LargeWord
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.Vector as V
+
+import Debug.Trace
 
 -- TODO: Remove a bunch of these dumb definitions.
 type Gas = Integer
-type MemSlice = V.Vector Word8
 type Stack = [Word256]
 type Ether = Integer
-type ByteArray = V.Vector Word8
-
-emptyByteArray :: ByteArray
-emptyByteArray = V.empty
 
 fromEther :: Integral a => Ether -> a
 fromEther = fromIntegral
 
-brange :: (Int, Int) -> ByteArray -> ByteArray
-brange (start, len) = V.slice start len
+brange :: (Int, Int) -> B.ByteString -> B.ByteString
+brange (start, len) = B.take len . B.drop start
 
-safeBrange :: (Int, Int) -> ByteArray -> ByteArray
+safeBrange :: (Int, Int) -> B.ByteString -> B.ByteString
 safeBrange (start, len) bs = let bufEnd = blength bs
                                  overread = (start+len) - max start bufEnd
-                                 suffix = V.replicate overread 0
+                                 suffix = B.replicate overread 0
                                  prefix = if start >= bufEnd
-                                             then V.empty
+                                             then B.empty
                                              else brange (start, min len (bufEnd-start)) bs
-                             in prefix V.++ suffix
+                             in traceShow (prefix, suffix) $ prefix `B.append` suffix
 
-bbyte :: Int -> ByteArray -> Word8
-bbyte i bs = bs V.! i
+bbyte :: Int -> B.ByteString -> Word8
+bbyte i bs = bs `B.index` i
 
-safeBbyte :: Int -> ByteArray -> Word8
-safeBbyte i bs = fromMaybe 0 $ bs V.!? i
+safeBbyte :: Int -> B.ByteString -> Word8
+safeBbyte i bs = if i >= B.length bs
+                     then 0
+                     else bs `B.index` i
 
-blength :: ByteArray -> Int
-blength = V.length
+blength :: B.ByteString -> Int
+blength = B.length
 
 -- Converts a vector of big-endian bytes to a Word256
 -- TODO: Do better than this?
-fromBytes :: ByteArray -> Word256
-fromBytes bs | V.length bs > 32 = error "Input list too long"
-fromBytes bs = (decode . BL.pack . pad . V.toList) bs
-        where pad xs = replicate (32 - length xs) 0 ++ xs
+fromBytes :: B.ByteString -> Word256
+fromBytes bs | B.length bs > 32 = error "Input list too long"
+fromBytes bs = (decode . BL.fromStrict . pad) bs
+        where pad xs = B.replicate (32 - B.length xs) 0 `B.append` xs
 
-toBytes :: Word256 -> ByteArray
-toBytes = V.fromList . BL.unpack . encode
+toBytes :: Word256 -> B.ByteString
+toBytes = BL.toStrict . encode
 
-emptyMemSlice :: MemSlice
-emptyMemSlice = V.empty
+emptyMemSlice :: B.ByteString
+emptyMemSlice = B.empty
 
-memToByteString :: ByteArray -> B.ByteString
-memToByteString = B.pack . V.toList
+memToByteString :: B.ByteString -> B.ByteString
+memToByteString = id

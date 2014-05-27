@@ -1,9 +1,9 @@
 module Tests.HUnit.EVM(tests) where
 
-import qualified Data.Vector as V
 import Data.Word
 import Data.Bits
 import Data.LargeWord
+import qualified Data.ByteString as B
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit
@@ -18,7 +18,7 @@ import Ethereum.SimpleTypes
 
 p32 :: Word256 -> [Word8]
 p32 x = let x' = (fromIntegral x) :: Word256
-        in op PUSH32 ++ (V.toList.toBytes) x'
+        in op PUSH32 ++ (B.unpack . toBytes) x'
 
 p32i :: Integral a => a -> [Word8]
 p32i = p32.fromIntegral
@@ -68,7 +68,7 @@ originAddr = A 0x0011
 callerAddr ::  Address
 callerAddr = A 0xCCCC
 
-inputData :: MemSlice
+inputData :: B.ByteString
 inputData = toBytes (1337 :: Word256)
 
 callValue :: Ether
@@ -85,7 +85,7 @@ testExecutionEnv is =
        input=inputData,
        caller=callerAddr,
        value=callValue,
-       code= V.fromList is };
+       code=B.pack is };
 
 runCodeTest :: [Word8] -> Termination -> Assertion
 runCodeTest c v = assert $ simpleRun c == v
@@ -148,14 +148,14 @@ memTest name putMemFunc e = testCase name (expect @=? result)
 tests :: [Test.Framework.Test]
 tests = [
         testGroup "Util" [
-                testCase "fromBytes 1" $ 1 @=? (fromBytes (V.fromList [1])),
-                testCase "fromBytes 256" $ 256 @=? (fromBytes (V.fromList [1, 0])),
+                testCase "fromBytes 1" $ 1 @=? (fromBytes (B.pack [1])),
+                testCase "fromBytes 256" $ 256 @=? (fromBytes (B.pack [1, 0])),
                 testCase "toBytes 1" $ 1 @=? ((fromBytes.toBytes) 1),
                 testCase "toBytes 256" $ 256 @=? ((fromBytes.toBytes) 256),
 
-                testCase "safeBrange in"   $ (V.fromList [2,3]) @=? (safeBrange (1,2) (V.fromList [1,2,3])),
-                testCase "safeBrange out"  $ (V.fromList [0,0]) @=? (safeBrange (5,2) (V.fromList [1,2,3])),
-                testCase "safeBrange edge" $ (V.fromList [3,0]) @=? (safeBrange (2,2) (V.fromList [1,2,3]))
+                testCase "safeBrange in"   $ (B.pack [2,3]) @=? (safeBrange (1,2) (B.pack [1,2,3])),
+                testCase "safeBrange out"  $ (B.pack [0,0]) @=? (safeBrange (5,2) (B.pack [1,2,3])),
+                testCase "safeBrange edge" $ (B.pack [3,0]) @=? (safeBrange (2,2) (B.pack [1,2,3]))
                 ],
 
         testGroup "Halts and Exceptions" [ 
@@ -230,21 +230,21 @@ tests = [
                 opTest CALLER (fromAddress callerAddr),
                 opTest CALLVALUE (fromInteger callValue),
                 unOpTest CALLDATALOAD 0 (fromBytes inputData),
-                opTest CALLDATASIZE ((fromIntegral.V.length) inputData),
+                opTest CALLDATASIZE ((fromIntegral.B.length) inputData),
                 memTest (show CALLDATACOPY)
                         (\memAddr -> triOp CALLDATACOPY (p32i memAddr) (p1 0) (p1 32))
                         (fromBytes inputData),
                 opTest CODESIZE 9,  -- FIXME: brittle.
                 memTest (show CODECOPY)  -- FIXME: also brittle.
                         (\memAddr -> triOp CODECOPY (p32i memAddr) (p1 0) (p1 1))
-                        (fromBytes $ V.fromList $ (toOpcode PUSH1) : (replicate 31 0)),
+                        (fromBytes $ B.pack $ (toOpcode PUSH1) : (replicate 31 0)),
                 opTest GASPRICE (fromEther gasPriceValue)
                 ],
         testGroup "stack" [
                 returnTest (show POP)  ((p32 400) ++ (p32 300) ++ (op POP)) 400,
                 returnTest (show SWAP) ((p32 400) ++ (p32 300) ++ (op SWAP) ++ (op POP)) 300,
                 returnTest (show MLOAD)
-                           (memLiteral 200 ((V.toList.toBytes) (1234)) ++ (unOp MLOAD (p32 200)))
+                           (memLiteral 200 ((B.unpack.toBytes) (1234)) ++ (unOp MLOAD (p32 200)))
                            1234,
                 memTest (show MSTORE)
                         (\memAddr -> binOp MSTORE (p1 memAddr) (p32 123))

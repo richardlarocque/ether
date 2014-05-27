@@ -18,16 +18,16 @@ module Ethereum.Storage.HashMap(
         load) where
 
 import Data.LargeWord
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as B
 import qualified Data.Map as DM
 
-type MapStorage = DM.Map Word256 L.ByteString
+type MapStorage = DM.Map Word256 B.ByteString
 
 emptyMapStorage :: MapStorage
 emptyMapStorage = DM.empty
 
-store :: Word256 -> L.ByteString -> MapStorage -> MapStorage
+store :: Word256 -> B.ByteString -> MapStorage -> MapStorage
 store = DM.insert
 
-load :: Word256 -> MapStorage -> Maybe L.ByteString
+load :: Word256 -> MapStorage -> Maybe B.ByteString
 load = DM.lookup
