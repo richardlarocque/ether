@@ -62,6 +62,9 @@ instance Monad ExecMonad where
 getContext :: ExecMonad Context
 getContext = ExecMonad $ \s@(c,_,_) -> (Right c, s)
 
+putContext :: Context -> ExecMonad ()
+putContext c' = ExecMonad $ \(_,ms,ee) -> (Right (), (c', ms, ee))
+
 getMachineState :: ExecMonad MachineState
 getMachineState = ExecMonad $ \s@(_,ms,_) -> (Right ms, s)
 
@@ -97,7 +100,7 @@ execute' c ms ee = case runState execStep (c, ms, ee) of
 execStep :: ExecMonad ()
 execStep = do op <- nextOp
               chargeOpFee op
-              runOp op
+              chargeMemFee (runOp op)
               updatePC op
 
 nextOp :: ExecMonad Instruction
@@ -115,7 +118,7 @@ chargeOpFee SSTORE      = undefined -- FIXME: handle this
 chargeOpFee CALL        = undefined -- FIXME: handle this
 chargeOpFee CREATE      = undefined -- FIXME: handle this
 chargeOpFee SHA3        = chargeFee F.sha3
-chargeOpFee SLOAD       = undefined -- FIXME: handle this
+chargeOpFee SLOAD       = chargeFee F.sload
 chargeOpFee BALANCE     = chargeFee F.balance
 chargeOpFee STOP        = chargeFee F.stop
 chargeOpFee SUICIDE     = chargeFee F.suicide
@@ -197,8 +200,16 @@ runOp MSTORE    = do a <- pop
 runOp MSTORE8   = do a <- pop
                      w <- pop
                      memStoreByte a w
-runOp SLOAD     = undefined
-runOp SSTORE    = undefined
+runOp SLOAD     = do k <- pop
+                     c <- getContext
+                     addr <- getEE >>= return . address
+                     push $ accountLoad c addr k
+runOp SSTORE    = do k <- pop
+                     v <- pop
+                     c <- getContext
+                     addr <- getEE >>= return . address
+                     let c' = accountStore c addr (k,v)
+                     putContext c'
 runOp JUMP      = pop >>= setPC
 runOp JUMPI     = do a <- pop 
                      c <- pop
@@ -267,6 +278,13 @@ chargeFee f = do ms <- getMachineState
                  let ms' = ms{gas=g'}
                  when (outOfGas ms') outOfGasException
                  putMachineState ms'
+
+chargeMemFee :: ExecMonad a -> ExecMonad a
+chargeMemFee x = do s <- getMachineState >>= return . memsize
+                    a <- x
+                    s' <- getMachineState >>= return . memsize
+                    chargeFee $ F.memory * (fromIntegral $ s' - s)
+                    return a
 
 pop :: ExecMonad Word256
 pop = do ms <- getMachineState

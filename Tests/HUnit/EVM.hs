@@ -92,7 +92,7 @@ testExecutionEnv is =
        code=B.pack is };
 
 runCodeTest :: [Word8] -> Termination -> Assertion
-runCodeTest c v = assert $ simpleRun c == v
+runCodeTest c v = v @=? simpleRun c
 
 testContext :: Context
 testContext =
@@ -172,7 +172,8 @@ tests = [
                 testCase "invalidInstruction" $ runCodeTest [0xfa] (InvalidInstruction),
                 testCase "stackUnderflow" $ runCodeTest (op ADD) (StackUnderflow),
                 testCase "stop" $ runCodeTest (op STOP) (NormalHalt emptyMemSlice),
-                testCase "outOfGas" $ runCodeTest (p32 0 ++ op JUMP) OutOfGasException
+                testCase "outOfGas step" $ runCodeTest (p32 0 ++ op JUMP) OutOfGasException,
+                testCase "outOfGas mem" $ runCodeTest (binOp MSTORE (p32 1000000000) (p32 100000000)) OutOfGasException
                 ],
         testGroup "Unary Operations" [
                 unOpTest NEG    5 (twosComp 5),
@@ -263,6 +264,7 @@ tests = [
                 memTest (show MSTORE8)
                         (\memAddr -> binOp MSTORE8 (p1 memAddr) (p32 $ 0x100 + 132))
                         (132 `shiftL` (256 - 8)),
+                returnTest "SLOAD none" (unOp SLOAD (p1 10)) 0,
                 -- FIXME SLOAD, SSTORE
                 returnTest "JUMP" ((unOp JUMP (p1 4)) ++ (op STOP) ++ (p1 10)) 10,
                 returnTest "JUMPI 0" ((binOp JUMPI (p1 6) (p1 0)) ++ (op STOP) ++ (p1 10)) 10,

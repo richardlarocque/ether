@@ -1,9 +1,11 @@
 module Ethereum.Storage.Context where
 
+import Data.Maybe
 import Data.Binary
 import Control.Monad.Reader(runReader)
 import Ethereum.State.Account
 import Ethereum.State.Address
+import Ethereum.SimpleTypes
 import Ethereum.Storage.HashMap
 import Ethereum.Storage.Trie as T
 import Data.LargeWord
@@ -47,3 +49,24 @@ insertToStorage (Context s tr) (h, bs) = Context (store h bs s) tr
 
 lookupInStorage :: Context -> Word256 -> Maybe B.ByteString
 lookupInStorage (Context s _) h = load h s
+
+accountStore :: Context -> Address -> (Word256, Word256) -> Context
+accountStore c@(Context s tr) addr (k, v) =
+        fromMaybe c $
+        do acc <- getAccount c addr
+           let accountContext = (Context s (stateRoot acc))
+           let (kb, vb) = (toBytes k, toBytes v)
+           let (Context s' acc_tr') = insertToTrie accountContext (kb, vb)
+           let acc' = acc{stateRoot=acc_tr'}
+           let c' = Context s' tr
+           return $ updateAccount c' (addr, acc')
+
+accountLoad :: Context -> Address -> Word256 -> Word256
+accountLoad c@(Context s _) addr k =
+        fromMaybe 0 $
+        do acc <- getAccount c addr
+           let accountContext = (Context s (stateRoot acc))
+           let kb = toBytes k
+           vb <- lookupInTrie accountContext kb
+           return $ fromBytes vb
+
