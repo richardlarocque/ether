@@ -173,7 +173,7 @@ tests = [
                 testCase "stackUnderflow" $ runCodeTest (op ADD) (StackUnderflow),
                 testCase "stop" $ runCodeTest (op STOP) (NormalHalt emptyMemSlice),
                 testCase "outOfGas step" $ runCodeTest (p32 0 ++ op JUMP) OutOfGasException,
-                testCase "outOfGas mem" $ runCodeTest (binOp MSTORE (p32 1000000000) (p32 100000000)) OutOfGasException
+                testCase "outOfGas mem" $ runCodeTest (binOp MSTORE (p32 1000000000) (p32 1)) OutOfGasException
                 ],
         testGroup "Unary Operations" [
                 unOpTest NEG    5 (twosComp 5),
@@ -265,7 +265,7 @@ tests = [
                         (\memAddr -> binOp MSTORE8 (p1 memAddr) (p32 $ 0x100 + 132))
                         (132 `shiftL` (256 - 8)),
                 returnTest "SLOAD none" (unOp SLOAD (p1 10)) 0,
-                -- FIXME SLOAD, SSTORE
+                returnTest "SSTORE" (binOp SSTORE (p1 10) (p1 42) ++ unOp SLOAD (p1 10)) 42,
                 returnTest "JUMP" ((unOp JUMP (p1 4)) ++ (op STOP) ++ (p1 10)) 10,
                 returnTest "JUMPI 0" ((binOp JUMPI (p1 6) (p1 0)) ++ (op STOP) ++ (p1 10)) 10,
                 returnTest "JUMPI 1" ((binOp JUMPI (p32 0xDEAD) (p1 1)) ++ (p1 10)) 10,

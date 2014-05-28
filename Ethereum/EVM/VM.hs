@@ -114,7 +114,7 @@ nextOp = do ee <- getEE
                         Just w -> return w
 
 chargeOpFee :: Instruction -> ExecMonad ()
-chargeOpFee SSTORE      = undefined -- FIXME: handle this
+chargeOpFee SSTORE      = return () -- Handled in SSTORE's runOp 
 chargeOpFee CALL        = undefined -- FIXME: handle this
 chargeOpFee CREATE      = undefined -- FIXME: handle this
 chargeOpFee SHA3        = chargeFee F.sha3
@@ -208,8 +208,11 @@ runOp SSTORE    = do k <- pop
                      v <- pop
                      c <- getContext
                      addr <- getEE >>= return . address
+                     let orig = accountLoad c addr k
                      let c' = accountStore c addr (k,v)
                      putContext c'
+                     when (orig == 0) (chargeFee F.sstore)
+                     when (v /= 0) (chargeFee F.sstore)
 runOp JUMP      = pop >>= setPC
 runOp JUMPI     = do a <- pop 
                      c <- pop
