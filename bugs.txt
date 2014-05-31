@@ -1,5 +1,4 @@
 -- Not clear that memory, input data, etc. is *byte* addressable.
--- Which SHA3?  My library is Kekkak..
 -- CALLDATACOPY, CODECOPY: surely it was supposed to be three *input* arguments?
 -- Word size of '\blackboard{P}' or scalars is not really specified, though
    it is often implicitly limited.  RLP serialization seems to limit it at
@@ -7,4 +6,6 @@
 -- Equation (42) confuses me.  What's this part about taking only two parameters?
    What are the types of inputs and outputs?  Why does S(T) (transaction sender)
    seem to map to g', which is presumably a gas value?
--- There are some unclear references to a T_b...
+-- There are some unclear references to a T_b.
+-- Not sure what T_o is, either.
+-- Should Equations 65 and 66 debit the sender, not just credit the receiver?

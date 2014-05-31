@@ -13,38 +13,43 @@ import Ethereum.State.Transaction as T
 
 import Data.ByteString as B
 
-startTransaction ::  Context -> Transaction -> Maybe Context
-startTransaction c t =
+doTransaction ::  Context -> Transaction -> Maybe Context
+doTransaction c t =
            -- Equation 38
         do let addr = (sender t)
            acc <- getAccount c addr
            unless (isTransactionValid t acc) Nothing
 
-           -- Start irrevocable changes.
-           let c_0 = checkpointState c t (addr, acc)
-
            let (T n v gp gl tt _) = t
+           let g = (gl - intrinsicGas t)
 
-           -- Equation 42, but translated to be more like equation 42.
+           -- Equation 42
            let (c_p, g') = case tt of
                 (Right (ContractCreation ini)) ->
-                        let g = (gl - intrinsicGas t)
-                        in runContractCreation c_0 addr n g gp v ini
-                _ -> undefined
+                        let c_0 = ccCheckpointState c t (addr, acc)
+                        in runContractCreation c_0 addr n g gp v ini -- Eq 49
+                (Left (MessageCall toAddr dat)) ->
+                        let c_1 = mcCheckpointState c addr toAddr v
+                        in runMessageCall_ c_1  addr addr toAddr g gp v dat -- Eq 64
 
            -- Equation 45, refund some gas to the sender.
            let c_p' = creditAccount c_p addr (g'*gl)
 
            -- TODO: Pay the miner.
+           -- TODO: Count gas spent against the block's limit.
 
            return c_p'
 
--- Equations 39, 40, and 41.
-checkpointState :: Context -> Transaction -> (Address, Account) -> Context
-checkpointState c t (addr, acc) =
+-- | Equations 39, 40, and 41.
+ccCheckpointState :: Context -> Transaction -> (Address, Account) -> Context
+ccCheckpointState c t (addr, acc) =
         let acc' = debit acc (upFrontCost  t)
             acc'' = nextNonce acc' in
         updateAccount c (addr, acc'')
+
+-- | Equations 65 and 66 (assuming those equations *meant* to debit the sender)
+mcCheckpointState :: Context -> Address -> Address -> Integer -> Context
+mcCheckpointState c s r v = (\cx -> creditAccount cx r v) . (\cx -> debitAccount cx s v) $ c
 
 -- | Equation 49 has a more sensible definition of Lambda than Equation 42.
 runContractCreation :: Context -> Address -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> (Context, Integer)
@@ -57,6 +62,19 @@ runContractCreation c s n g gp v ini =
         in case executeCode c' g ee of
                 OutOfGas -> (c, 0)
                 Result c'' ms' _ body -> (updateCodeBody c'' newAddr body, gas ms')
+
+runMessageCall_ :: Context -> Address -> Address -> Address -> Integer -> Integer -> Integer -> B.ByteString -> (Context, Integer)
+runMessageCall_  c s o r g gp v dat = (\(c',g',_r) -> (c',g')) $ (runMessageCall c s o r g gp v dat)
+
+-- | Equation 64
+runMessageCall :: Context -> Address -> Address -> Address -> Integer -> Integer -> Integer -> B.ByteString -> (Context, Integer, Maybe B.ByteString)
+runMessageCall c s o r g gp v dat =
+        let ch = fromJust $ getAccount c r >>= return . codeHash
+            cod = lookupCodeHash c ch
+            ee = EE r o gp dat s v cod
+        in case executeCode c g ee of
+                OutOfGas -> (c, 0, Nothing)
+                Result c' ms' _ ret -> (c', gas ms', ret)
 
 generateValidAddress :: Context -> Address -> Integer -> Address
 generateValidAddress c a n = let a1 = generateAddress a n in validateAddress c a1
@@ -78,11 +96,10 @@ updateCodeBody c addr body =
 creditAccount :: Context -> Address -> Integer -> Context
 creditAccount c addr e = fromMaybe c $ modifyAccount c addr (\a-> credit a e)
 
--- If these checks pass, we start making irrevocable state changes.
--- Step 1: Increment the sender's nonce, and remove the up front gas.
--- Step 2: Process the message call or contract creation.
---         Side effects according to those procedure definitions.
--- Step 3:
---   - Refund remaining gas to sender.
---   - Send spent gas to this block's "coinbase".
---   - Add initial gas + spent gas towards the block's limit.
+debitAccount :: Context -> Address -> Integer -> Context
+debitAccount c addr e = fromMaybe c $ modifyAccount c addr (\a-> debit a e)
+
+lookupCodeHash :: Context -> CodeHash -> B.ByteString
+lookupCodeHash c ch = case ch of
+        NullCodeHash -> B.empty
+        CodeHash h -> fromMaybe B.empty $ lookupInStorage c h

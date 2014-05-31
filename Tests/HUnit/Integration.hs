@@ -26,7 +26,7 @@ buildAndVerify = do
 
         let cc1 = initContractCreation cprg pr (A.nonce acc) 10 1 1000 B.empty
 
-        assertBool "verify transaction" (isJust $ startTransaction c1 cc1)
+        assertBool "verify transaction" (isJust $ doTransaction c1 cc1)
 
 tests ::  [Test.Framework.Test]
 tests = [ testCase "BuildAndVerify" buildAndVerify ]
