@@ -86,6 +86,19 @@ normalHalt bs = ExecMonad $ \s -> (Left $ NormalHalt bs, s)
 outOfGasException :: ExecMonad ()
 outOfGasException = ExecMonad $ (\s -> (Left OutOfGasException, s))
 
+-- | Equation 64
+runMessageCall :: Context -> Address -> Address -> Address -> Integer -> Integer -> Integer -> B.ByteString -> ExecResult
+runMessageCall c s o r g gp v dat =
+        let ch = fromJust $ getAccount c r >>= return . codeHash
+            cod = lookupCodeHash c ch
+            ee = EE r o gp dat s v cod
+        in executeCode c g ee
+
+lookupCodeHash :: Context -> CodeHash -> B.ByteString
+lookupCodeHash c ch = case ch of
+        NullCodeHash -> B.empty
+        CodeHash h -> fromMaybe B.empty $ lookupInStorage c h
+
 executeCode :: Context -> Integer -> ExecutionEnvironment -> ExecResult
 executeCode c g ee = execute' c (MS g 0 initMem 0 []) ee
 
@@ -115,7 +128,7 @@ nextOp = do ee <- getEE
 
 chargeOpFee :: Instruction -> ExecMonad ()
 chargeOpFee SSTORE      = return () -- Handled in SSTORE's runOp 
-chargeOpFee CALL        = undefined -- FIXME: handle this
+chargeOpFee CALL        = return () -- Handled in CALL's runOp
 chargeOpFee CREATE      = undefined -- FIXME: handle this
 chargeOpFee SHA3        = chargeFee F.sha3
 chargeOpFee SLOAD       = chargeFee F.sload
@@ -272,8 +285,11 @@ updatePC JUMPI        = return ()  -- Handled it earlier.
 updatePC p | isPush p = addPC (pushLen p + 1)
 updatePC _            = incrementPC
 
-stepFee :: ExecMonad ()
-stepFee = return ()
+remitFee :: Integer -> ExecMonad ()
+remitFee f = do ms <- getMachineState
+                let g' = gas ms + f
+                let ms' = ms{gas=g'}
+                putMachineState ms'
 
 chargeFee :: Integer -> ExecMonad ()
 chargeFee f = do ms <- getMachineState
@@ -355,6 +371,23 @@ addPC x = do ms <- getMachineState
 
 incrementPC :: ExecMonad ()
 incrementPC = addPC 1
+
+callOp :: Integer -> Address -> Integer -> Word256 -> Word256 -> Word256 -> Word256 -> ExecMonad Word256
+callOp gl toAddr v dStart dLen retStart retLen = do
+        chargeFee F.call
+        chargeFee gl
+        ee <- getEE
+        c <- getContext
+        dat <- memLoad dStart dLen
+        case runMessageCall c (address ee) (origin ee) toAddr gl (gasPrice ee) v dat of
+                OutOfGas -> return 0
+                Result c' ms' _ ret ->
+                        do let g' = gas ms'
+                           let ret' = fromMaybe B.empty ret 
+                           memStore retStart (B.take (fromIntegral retLen) ret')
+                           putContext c'
+                           remitFee g'
+                           return 1
 
 -- Arithmetic helpers.
 

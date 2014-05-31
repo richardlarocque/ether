@@ -64,17 +64,10 @@ runContractCreation c s n g gp v ini =
                 Result c'' ms' _ body -> (updateCodeBody c'' newAddr body, gas ms')
 
 runMessageCall_ :: Context -> Address -> Address -> Address -> Integer -> Integer -> Integer -> B.ByteString -> (Context, Integer)
-runMessageCall_  c s o r g gp v dat = (\(c',g',_r) -> (c',g')) $ (runMessageCall c s o r g gp v dat)
-
--- | Equation 64
-runMessageCall :: Context -> Address -> Address -> Address -> Integer -> Integer -> Integer -> B.ByteString -> (Context, Integer, Maybe B.ByteString)
-runMessageCall c s o r g gp v dat =
-        let ch = fromJust $ getAccount c r >>= return . codeHash
-            cod = lookupCodeHash c ch
-            ee = EE r o gp dat s v cod
-        in case executeCode c g ee of
-                OutOfGas -> (c, 0, Nothing)
-                Result c' ms' _ ret -> (c', gas ms', ret)
+runMessageCall_  c s o r g gp v dat =
+        case runMessageCall c s o r g gp v dat of
+                OutOfGas -> (c, 0)
+                Result c' ms' _ _ret -> (c', gas ms')
 
 generateValidAddress :: Context -> Address -> Integer -> Address
 generateValidAddress c a n = let a1 = generateAddress a n in validateAddress c a1
@@ -99,7 +92,3 @@ creditAccount c addr e = fromMaybe c $ modifyAccount c addr (\a-> credit a e)
 debitAccount :: Context -> Address -> Integer -> Context
 debitAccount c addr e = fromMaybe c $ modifyAccount c addr (\a-> debit a e)
 
-lookupCodeHash :: Context -> CodeHash -> B.ByteString
-lookupCodeHash c ch = case ch of
-        NullCodeHash -> B.empty
-        CodeHash h -> fromMaybe B.empty $ lookupInStorage c h
