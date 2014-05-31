@@ -7,6 +7,8 @@ import qualified Data.ByteString as B
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit
+import Data.ByteString.Builder
+import Data.Monoid
 
 import Ethereum.Storage.Context
 import Ethereum.State.Address
@@ -16,49 +18,28 @@ import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.InstructionSet as E
 import Ethereum.EVM.VM
 import Ethereum.SimpleTypes
-
-p32 :: Word256 -> [Word8]
-p32 x = let x' = (fromIntegral x) :: Word256
-        in op PUSH32 ++ (B.unpack . toBytes) x'
-
-p32i :: Integral a => a -> [Word8]
-p32i = p32.fromIntegral
-
-p1 :: Word8 -> [Word8]
-p1 x = op PUSH1 ++ [x]
-
-op :: Instruction -> [Word8]
-op o = [toOpcode o]
-
-unOp :: Instruction -> [Word8] -> [Word8]
-unOp i a = a ++ (op i)
-
-binOp :: Instruction -> [Word8] -> [Word8] -> [Word8]
-binOp i a1 a2 = a2 ++ a1 ++ (op i)
-
-triOp :: Instruction -> [Word8] -> [Word8] -> [Word8] -> [Word8]
-triOp i a1 a2 a3 = a3 ++ a2 ++ a1 ++ (op i)
+import Ethereum.Lang.Ops as L
 
 -- Stores the given data in memory
 -- A bit convoluted, but it saves us the trouble of setting up a symbol table.
-memLiteral :: Word256 -> [Word8]  -> [Word8]
+memLiteral :: Word256 -> B.ByteString -> Builder
 memLiteral memOffset literal =
-        let len = length literal
+        let len = B.length literal
             lenArg = p32i len
-            codeAddrArg = binOp ADD (op PC) (p32 (72::Word256))
+            codeAddrArg = add L.pc (p32 (72::Word256))
             memAddrArg = p32 memOffset
-            jmpAddrArg = binOp ADD (op PC) (p32i (len + 3))
-        in (triOp CODECOPY memAddrArg codeAddrArg lenArg)
-           ++ (unOp JUMP jmpAddrArg)
-           ++ literal
+            jmpAddrArg = add L.pc (p32i (len + 3))
+        in (codecopy memAddrArg codeAddrArg lenArg)
+           <> (unOp JUMP jmpAddrArg)
+           <> (byteString literal)
 
 -- Stores the top of the stack at memory zero.
-basicMstore :: [Word8]  -> [Word8]
-basicMstore xs = xs ++ p1 0 ++ [ toOpcode MSTORE ]
+basicMstore :: Builder  -> Builder
+basicMstore xs = mstore (p1 0) xs
 
 -- Returns the top element of the stack.
-basicReturn :: [Word8]  -> [Word8]
-basicReturn xs = (basicMstore xs) ++ p1 32 ++ p1 0 ++ [ toOpcode RETURN ]
+basicReturn :: Builder  -> Builder
+basicReturn xs = (basicMstore xs) <> L.return (p1 0) (p1 32)
 
 ownerAddr ::  Address
 ownerAddr = A 0xAAAA
@@ -81,17 +62,17 @@ callValue = 5000000
 gasPriceValue :: Ether
 gasPriceValue = 1
 
-testExecutionEnv :: [Word8] -> ExecutionEnvironment
-testExecutionEnv is =
+testExecutionEnv :: B.ByteString -> ExecutionEnvironment
+testExecutionEnv x =
   EE { address=ownerAddr,
        origin=originAddr,
        gasPrice=gasPriceValue,
        input=inputData,
        caller=callerAddr,
        value=callValue,
-       code=B.pack is };
+       code=x };
 
-runCodeTest :: [Word8] -> Termination -> Assertion
+runCodeTest :: Builder -> Termination -> Assertion
 runCodeTest c v = v @=? simpleRun c
 
 testContext :: Context
@@ -100,11 +81,11 @@ testContext =
             c1 = updateAccount c0 (ownerAddr, ownerAccount)
         in c1
 
-simpleRun :: [Word8] -> Termination
+simpleRun :: Builder -> Termination
 simpleRun c =
         let ms = initWithGas 10000
             context = testContext
-            ee = testExecutionEnv c
+            ee = testExecutionEnv (compile c)
         in runUntilDone context ms ee
 
 runUntilDone :: Context -> MachineState -> ExecutionEnvironment -> Termination
@@ -112,7 +93,7 @@ runUntilDone c ms ee = case runState execStep (c, ms, ee) of
         (Left t, _) -> t
         (Right _, (c', ms', ee')) -> runUntilDone c' ms' ee'
 
-returnTest :: String -> [Word8] -> Word256 -> Test.Framework.Test
+returnTest :: String -> Builder -> Word256 -> Test.Framework.Test
 returnTest name codes v = testCase name (expect @=? result)
         where expect = NormalHalt (toBytes v)
               result = simpleRun $ basicReturn $ codes
@@ -135,19 +116,19 @@ binOpTest o a1 a2 v = testCase name (expect @=? result)
               expect = NormalHalt (toBytes v)
               result = simpleRun ( basicReturn $ binOp o (p32 a1) (p32 a2) )
 
-sha3Test ::   String -> [Word8] -> Word256 -> Test.Framework.Test
+sha3Test ::   String -> B.ByteString -> Word256 -> Test.Framework.Test
 sha3Test name val e = testCase name (expect @=? result)
         where expect = NormalHalt (toBytes e)
-              result = simpleRun $ basicReturn (putMem ++ hashMem)
+              result = simpleRun $ basicReturn (putMem <> hashMem)
               memAddr = 100
-              memLen = length val
+              memLen = B.length val
               putMem = memLiteral memAddr val
               hashMem = binOp SHA3 (p32 memAddr) (p32i memLen)
 
-memTest :: TestName -> (Word8 -> [Word8]) -> Word256 -> Test.Framework.Test
+memTest :: TestName -> (Word8 -> Builder) -> Word256 -> Test.Framework.Test
 memTest name putMemFunc e = testCase name (expect @=? result)
         where expect = NormalHalt (toBytes e)
-              result = simpleRun $ putMem ++ binOp RETURN (p1 memAddr) (p1 32)
+              result = simpleRun $ putMem <> binOp RETURN (p1 memAddr) (p1 32)
               memAddr = 100
               putMem = putMemFunc memAddr
 
@@ -169,10 +150,10 @@ tests = [
                 ],
 
         testGroup "Halts and Exceptions" [ 
-                testCase "invalidInstruction" $ runCodeTest [0xfa] (InvalidInstruction),
+                testCase "invalidInstruction" $ runCodeTest (asOp 0xfa) (InvalidInstruction),
                 testCase "stackUnderflow" $ runCodeTest (op ADD) (StackUnderflow),
                 testCase "stop" $ runCodeTest (op STOP) (NormalHalt emptyMemSlice),
-                testCase "outOfGas step" $ runCodeTest (p32 0 ++ op JUMP) OutOfGasException,
+                testCase "outOfGas step" $ runCodeTest (p32 0 <> op JUMP) OutOfGasException,
                 testCase "outOfGas mem" $ runCodeTest (binOp MSTORE (p32 1000000000) (p32 1)) OutOfGasException
                 ],
         testGroup "Unary Operations" [
@@ -233,7 +214,7 @@ tests = [
                 ],
         testGroup "sha3" [
                 -- According to Wikipedia, this is the hash for Kekkak-256.
-                sha3Test "()" [] 89477152217924674838424037953991966239322087453347756267410168184682657981552
+                sha3Test "()" B.empty 89477152217924674838424037953991966239322087453347756267410168184682657981552
                 ],
         testGroup "environment" [
                 opTest ADDRESS (fromAddress ownerAddr),
@@ -253,27 +234,27 @@ tests = [
                 opTest GASPRICE (fromEther gasPriceValue)
                 ],
         testGroup "stack" [
-                returnTest (show POP)  ((p32 400) ++ (p32 300) ++ (op POP)) 400,
-                returnTest (show SWAP) ((p32 400) ++ (p32 300) ++ (op SWAP) ++ (op POP)) 300,
+                returnTest (show POP)  ((p32 400) <> (p32 300) <> (op POP)) 400,
+                returnTest (show SWAP) ((p32 400) <> (p32 300) <> (op SWAP) <> (op POP)) 300,
                 returnTest (show MLOAD)
-                           (memLiteral 200 ((B.unpack.toBytes) (1234)) ++ (unOp MLOAD (p32 200)))
+                           (memLiteral 200 (toBytes 1234) <> (unOp MLOAD (p32 200)))
                            1234,
                 memTest (show MSTORE)
                         (\memAddr -> binOp MSTORE (p1 memAddr) (p32 123))
                         123,
                 memTest (show MSTORE8)
-                        (\memAddr -> binOp MSTORE8 (p1 memAddr) (p32 $ 0x100 + 132))
+                        (\memAddr -> mstore8 (p1 memAddr) (p32 $ 0x100 + 132))
                         (132 `shiftL` (256 - 8)),
                 returnTest "SLOAD none" (unOp SLOAD (p1 10)) 0,
-                returnTest "SSTORE" (binOp SSTORE (p1 10) (p1 42) ++ unOp SLOAD (p1 10)) 42,
-                returnTest "JUMP" ((unOp JUMP (p1 4)) ++ (op STOP) ++ (p1 10)) 10,
-                returnTest "JUMPI 0" ((binOp JUMPI (p1 6) (p1 0)) ++ (op STOP) ++ (p1 10)) 10,
-                returnTest "JUMPI 1" ((binOp JUMPI (p32 0xDEAD) (p1 1)) ++ (p1 10)) 10,
-                returnTest "PC" ((unOp JUMP (p1 4)) ++ (op STOP) ++ (op PC)) 4,
-                returnTest "MSIZE 0" (op MSIZE) 0,
-                returnTest "MSIZE 32" ((binOp MSTORE8 (p1 32) (p1 10)) ++ (op MSIZE)) 2,
-                returnTest "MSIZE 1023" ((binOp MSTORE8 (p32 1023) (p1 10)) ++ (op MSIZE)) 32,
-                returnTest "MSIZE 1024" ((binOp MSTORE8 (p32 1024) (p1 10)) ++ (op MSIZE)) 33
+                returnTest "SSTORE" (binOp SSTORE (p1 10) (p1 42) <> unOp SLOAD (p1 10)) 42,
+                returnTest "JUMP" ((unOp JUMP (p1 4)) <> (op STOP) <> (p1 10)) 10,
+                returnTest "JUMPI 0" ((binOp JUMPI (p1 6) (p1 0)) <> (op STOP) <> (p1 10)) 10,
+                returnTest "JUMPI 1" ((binOp JUMPI (p32 0xDEAD) (p1 1)) <> (p1 10)) 10,
+                returnTest "PC" ((unOp JUMP (p1 4)) <> (op STOP) <> (op PC)) 4,
+                returnTest "MSIZE 0" (msize) 0,
+                returnTest "MSIZE 32" (mstore8 (p1 32) (p1 10) <> msize) 2,
+                returnTest "MSIZE 1023" (mstore8 (p32 1023) (p1 10) <> msize) 32,
+                returnTest "MSIZE 1024" (mstore8 (p32 1024) (p1 10) <> msize) 33
                 ]
         -- PUSH is implicitly tested quite well already.
         -- TODO: system operations
