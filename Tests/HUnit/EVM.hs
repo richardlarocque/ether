@@ -20,26 +20,13 @@ import Ethereum.EVM.VM
 import Ethereum.SimpleTypes
 import Ethereum.Lang.Ops as L
 
--- Stores the given data in memory
--- A bit convoluted, but it saves us the trouble of setting up a symbol table.
-memLiteral :: Word256 -> B.ByteString -> Builder
-memLiteral memOffset literal =
-        let len = B.length literal
-            lenArg = p32i len
-            codeAddrArg = add L.pc (p32 (72::Word256))
-            memAddrArg = p32 memOffset
-            jmpAddrArg = add L.pc (p32i (len + 3))
-        in (codecopy memAddrArg codeAddrArg lenArg)
-           <> (unOp JUMP jmpAddrArg)
-           <> (byteString literal)
-
 -- Stores the top of the stack at memory zero.
 basicMstore :: Builder  -> Builder
 basicMstore xs = mstore (p1 0) xs
 
 -- Returns the top element of the stack.
 basicReturn :: Builder  -> Builder
-basicReturn xs = (basicMstore xs) <> L.return (p1 0) (p1 32)
+basicReturn xs = (basicMstore xs) <> returnOp (p1 0) (p1 32)
 
 ownerAddr ::  Address
 ownerAddr = A 0xAAAA

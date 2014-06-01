@@ -58,6 +58,12 @@ mstore = binOp MSTORE
 mstore8 :: BinOp
 mstore8 = binOp MSTORE8
 
+sstore :: BinOp
+sstore = binOp SSTORE
+
+sload :: UnOp
+sload = unOp SLOAD
+
 add :: BinOp
 add = binOp ADD
 
@@ -67,5 +73,18 @@ pc = op PC
 msize :: ZeroOp
 msize = op MSIZE
 
-return :: BinOp
-return = binOp RETURN
+returnOp :: BinOp
+returnOp = binOp RETURN
+
+-- Stores the given data in memory
+-- A bit convoluted, but it saves us the trouble of setting up a symbol table.
+memLiteral :: Word256 -> B.ByteString -> Builder
+memLiteral memOffset literal =
+        let len = B.length literal
+            lenArg = p32i len
+            codeAddrArg = add pc (p32 (72::Word256))
+            memAddrArg = p32 memOffset
+            jmpAddrArg = add pc (p32i (len + 3))
+        in codecopy memAddrArg codeAddrArg lenArg
+           <> unOp JUMP jmpAddrArg
+           <> byteString literal
