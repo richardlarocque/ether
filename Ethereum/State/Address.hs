@@ -39,8 +39,10 @@ zeroAddress :: Address
 zeroAddress = A 0
 
 -- | Equation 52: Generate an address from sender and its nonce.
--- | See text below its definition for an explanation of the -1.
+-- | Unlike the recommendation in the text below the definition,
+-- | we account things differently so we don't need to decrement
+-- | the nonce by 1.
 generateAddress :: Address -> Integer -> Address
 generateAddress a n =
-        let seed = runPut $ putSequence $ do { putAddress a; putScalar (n-1) }
+        let seed = runPut $ putSequence $ do { putAddress a; putScalar n }
         in fromHash $ hashBytes $ L.toStrict seed

@@ -42,17 +42,26 @@ makeMCWithData cprg c pr toAddr dat =
             senderAcc = fromJust $ getAccount c senderAddr
         in initMessageCall cprg pr (A.nonce senderAcc) 10 2 10000 toAddr dat
 
+getGeneratedAddress :: Context -> Transaction -> Address
+getGeneratedAddress c t =
+        case t of
+                (T n _ _ _ (Right _) _) -> generateValidAddress c (sender t) n
+                _ -> undefined
+
 buildAndVerify :: IO Context
 buildAndVerify = do
         cprg <- initCPRG
         let c = initTestContext
         let cc1 = makeCCWithCode cprg c priv1 B.empty
 
+        -- TODO: Find a better way to fetch the address.
+        let newAddr = getGeneratedAddress c cc1
+
         let result = doTransaction c cc1
         assertBool "verify transaction" (isJust $ result)
 
         let Just c' = result
-        assertBool "X" (isNothing $ getAccount c' (A 0))
+        assertBool "verify new contract" (isJust $ getAccount c' newAddr)
 
         return c'
 

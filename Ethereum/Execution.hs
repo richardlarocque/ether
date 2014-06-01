@@ -27,7 +27,7 @@ doTransaction c t =
            let (c_p, g') = case tt of
                 (Right (ContractCreation ini)) ->
                         let c_0 = ccCheckpointState c t (addr, acc)
-                        in runContractCreation c_0 addr (n+1) g gp v ini -- Eq 49
+                        in runContractCreation c_0 addr n g gp v ini -- Eq 49
                 (Left (MessageCall toAddr dat)) ->
                         let c_1 = mcCheckpointState c addr toAddr v
                         in runMessageCall_ c_1  addr addr toAddr g gp v dat -- Eq 64
