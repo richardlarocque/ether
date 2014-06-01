@@ -33,10 +33,11 @@ nibbleize bs = map fromIntegral $ concatMap toNibbles bs
         where toNibbles b = [highNibble b, lowNibble b]
 
 asBE :: Integral a => a -> B.ByteString
-asBE = B.pack . reverse . (unfoldr (\v ->
+asBE x | x < 0 = undefined
+asBE x = B.pack $ reverse $ unfoldr (\v ->
         if v == 0
            then Nothing
-           else Just (fromIntegral $ v `mod` 256, v `div` 256)))
+           else Just (fromIntegral $ v `mod` 256, v `div` 256)) x
 
 unBE :: Monad m => B.ByteString -> m Integer
 unBE bs = case bs of

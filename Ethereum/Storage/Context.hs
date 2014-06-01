@@ -33,7 +33,7 @@ modifyAccount c addr f = do acc <- getAccount c addr
                             return $ updateAccount c (addr, f acc)
 
 insertToTrie :: Context -> (B.ByteString, B.ByteString) -> Context
-insertToTrie (Context s tr) kv =
+insertToTrie(Context s tr) kv =
         let (tr', newNodes) = runReader (T.insert tr kv) s
             s' = updateStorage s newNodes
         in Context s' tr'
