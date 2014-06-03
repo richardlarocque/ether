@@ -1,7 +1,6 @@
 module Ethereum.State.Block where
 
 import Data.Binary
-import Data.Binary.Get
 import Data.Binary.Put
 import Data.LargeWord
 import Ethereum.Common
@@ -120,4 +119,3 @@ getBlock = getSequence $
            ts <- getListAsSequence getTransactionReceipt
            us <- getUncles
            return $ Block bh ts us
-

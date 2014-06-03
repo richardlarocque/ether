@@ -29,23 +29,22 @@ putArray bs = case bs of
                 do putWord8 (fromIntegral $ 128 + B.length bs)
                    putByteString bs
         _ ->
-                do putWord8 (fromIntegral $ 183 + (B.length (asBE $ B.length bs)))
+                do putWord8 (fromIntegral $ 183 + B.length (asBE $ B.length bs))
                    putByteString (asBE $ B.length bs)
                    putByteString bs
 
 getArrayHeader ::  Get Integer
 getArrayHeader = do
-        b <- lookAhead $ getWord8
+        b <- lookAhead getWord8
         case b of
                 _  | b < 128   -> return 1
-                _  | b <= 183  -> do
-                        skip 1
-                        return $ (fromIntegral b) - 128
-                _  | b <= 192 -> do
-                        skip 1
-                        ls <- getByteString ((fromIntegral b) - 183)
-                        len <- unBE ls
-                        return len
+                _  | b <= 183  ->
+                        do skip 1
+                           return $ fromIntegral b - 128
+                _  | b <= 192 ->
+                        do skip 1
+                           ls <- getByteString (fromIntegral b - 183)
+                           unBE ls
                 _ -> fail "Not paresable as array"
 
 getArray ::  Get B.ByteString
@@ -53,23 +52,23 @@ getArray = do len <- getArrayHeader
               getByteString (fromIntegral len)
 
 putScalar ::  Integer -> Put
-putScalar = (putArray . asBE)
+putScalar = putArray . asBE
 
 putScalar256 :: Word256 -> Put
 putScalar256 = putScalar . fromIntegral
 
 getScalar ::  Get Integer
-getScalar = do getArray >>= unBE
+getScalar = getArray >>= unBE
 
 getScalar256 ::  Get Word256
-getScalar256 = (liftM fromIntegral) getScalar
+getScalar256 = liftM fromIntegral getScalar
 
 putSequenceHeader :: Integral a => a -> Put
 putSequenceHeader len =
-        do if len < 56
-              then putWord8 (fromIntegral $ 192 + len)
-              else do putWord8 (fromIntegral $ 247 + (B.length (asBE $ len)))
-                      putByteString (asBE $ len)
+        if len < 56
+           then putWord8 (fromIntegral $ 192 + len)
+           else do putWord8 (fromIntegral $ 247 + B.length (asBE len))
+                   putByteString (asBE len)
 
 putSequenceBytes :: B.ByteString -> Put
 putSequenceBytes lb =
@@ -80,7 +79,8 @@ putListAsSequence :: (a -> Put) -> [a] -> Put
 putListAsSequence p xs = putSequence $ mapM_ p xs
 
 getListAsSequence :: Get a -> Get [a]
-getListAsSequence g = getListAsSequence' []
+getListAsSequence g = do len <- getSequenceHeader
+                         isolate len (getListAsSequence' [])
         where getListAsSequence' us = do done <- isEmpty
                                          if done
                                             then return (reverse us)
@@ -88,7 +88,7 @@ getListAsSequence g = getListAsSequence' []
                                                     getListAsSequence' (u:us)
 
 putSequence ::  Put -> Put
-putSequence p1 = putSequenceBytes $ L.toStrict $ (runPut p1)
+putSequence p1 = putSequenceBytes $ L.toStrict $ runPut p1
 
 getSequence :: Get a -> Get a
 getSequence g1 =
@@ -99,13 +99,13 @@ getSequenceHeader ::  Get Int
 getSequenceHeader =
         do b <- get :: Get Word8
            if b <= 247
-              then return $ (fromIntegral b) - 192
-              else do ls <- getByteString ((fromIntegral b) - 247)
+              then return $ fromIntegral b - 192
+              else do ls <- getByteString (fromIntegral b - 247)
                       len <- unBE ls
                       return $ fromIntegral len
 
 getSequenceBytes :: Get B.ByteString
-getSequenceBytes = (liftM L.toStrict) $ getSequence getRemainingLazyByteString
+getSequenceBytes = liftM L.toStrict $ getSequence getRemainingLazyByteString
 
 getWord8s :: Integral a => a -> Get [Word8]
 getWord8s x = replicateM (fromIntegral x) get
