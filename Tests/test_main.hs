@@ -1,4 +1,3 @@
-
 module Main where
 
 import Test.Framework
@@ -9,6 +8,7 @@ import qualified Tests.HUnit.HexPrefix as HexPrefix
 import qualified Tests.HUnit.Trie as Trie
 import qualified Tests.HUnit.Transaction as Transaction
 import qualified Tests.HUnit.Integration as Integration
+import qualified Tests.HUnit.Block as Block
 
 tests :: [Test.Framework.Test]
 tests = [
@@ -18,7 +18,8 @@ tests = [
         testGroup "HexPrefix" HexPrefix.tests,
         testGroup "Trie" Trie.tests,
         testGroup "Transaction" Transaction.tests,
-        testGroup "Integration" Integration.tests
+        testGroup "Integration" Integration.tests,
+        testGroup "Block" Block.tests
         ]
 
 main ::  IO ()

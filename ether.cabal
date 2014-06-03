@@ -42,6 +42,7 @@ Library
       Ethereum.Execution
       Ethereum.State.Account
       Ethereum.State.Address
+      Ethereum.State.Block
       Ethereum.State.Transaction
       Ethereum.Storage.Context
       Ethereum.Storage.HashMap
@@ -74,6 +75,7 @@ Test-suite ether_tests
 
   other-modules:
       Tests.HUnit.Account,
+      Tests.HUnit.Block,
       Tests.HUnit.EVM,
       Tests.HUnit.HexPrefix,
       Tests.HUnit.RLP,
