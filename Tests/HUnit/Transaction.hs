@@ -1,6 +1,5 @@
 module Tests.HUnit.Transaction(tests) where
 
-import Crypto.Random
 import Data.Binary.Put
 import Data.Binary.Get
 import Ethereum.Crypto
@@ -22,18 +21,8 @@ roundTripTest p g x = testCase (show x) $
                    Right (rest, _, _) | not (L.null rest) -> assertFailure "Some bytes remain"
                    Right (_, _, v) -> x @=? v
 
-roundTripTestIO :: (Show a, Eq a) => String -> (a -> Put) -> Get a -> IO a -> Test.Framework.Test
-roundTripTestIO s p g x' = testCase s $
-        do x <- x'
-           let enc = runPut $ p x
-           case runGetOrFail g enc of
-                   Left (_, _, err) -> assertFailure err
-                   Right (rest, _, _) | not (L.null rest) -> assertFailure "Some bytes remain"
-                   Right (_, _, v) -> x @=? v
-
-
-roundTripTransaction :: String -> IO Transaction -> Test.Framework.Test
-roundTripTransaction s = roundTripTestIO s putTransaction getTransaction
+roundTripTransaction :: Transaction -> Test.Framework.Test
+roundTripTransaction t = roundTripTest putTransaction getTransaction t
 
 roundTripSignature :: TSignature -> Test.Framework.Test
 roundTripSignature = roundTripTest (putSignature) (getSignature)
@@ -44,19 +33,16 @@ roundTripContractCreation = roundTripTest (putContractCreation) (getContractCrea
 roundTripMessageCall :: MessageCall -> Test.Framework.Test
 roundTripMessageCall = roundTripTest (putMessageCall) (getMessageCall)
 
-cc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> IO Transaction
-cc pr n v gv gl bs = do
-        pool <- createEntropyPool
-        let cprg = cprgCreate pool :: SystemRNG
-        return $ initContractCreation cprg pr n v gv gl bs
+cc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> Transaction
+cc pr n v gv gl bs = initContractCreation pr n v gv gl bs
 
 acc1234 :: PrivateAccount
 acc1234 = makePrivateAccount 1234
 
-ccWithInitialGas :: Integer -> IO Transaction
+ccWithInitialGas :: Integer -> Transaction
 ccWithInitialGas gl = cc acc1234 0 10 1 gl (B.pack [0..9])
 
-ccWithNonce :: Integer -> IO Transaction
+ccWithNonce :: Integer -> Transaction
 ccWithNonce n = cc acc1234 n 10 1 1000 (B.pack [0..9])
 
 accWithNonce :: Integer -> Account
@@ -65,34 +51,23 @@ accWithNonce n = Account n 100 zeroRef NullCodeHash
 accWithBalance :: Integer -> Account
 accWithBalance b = Account 10 b zeroRef NullCodeHash
 
-ccWithExpenses :: Integer -> Integer -> Integer -> IO Transaction
+ccWithExpenses :: Integer -> Integer -> Integer -> Transaction
 ccWithExpenses v gp gl = cc acc1234 10 v gp gl (B.pack [0..9])
 
-mc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> IO Transaction
-mc pr n v gv gl to dat = do
-        pool <- createEntropyPool
-        let cprg = cprgCreate pool :: SystemRNG
-        return $ initMessageCall cprg pr n v gv gl to dat
+mc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> Transaction
+mc pr n v gv gl to dat = initMessageCall pr n v gv gl to dat
 
-validGasCheck :: String -> IO Transaction -> Bool -> Test.Framework.Test
-validGasCheck s t e = testCase s $
-        do t' <- t
-           e @=? isGasValid t'
+validGasCheck :: String -> Transaction -> Bool -> Test.Framework.Test
+validGasCheck s t e = testCase s $ e @=? isGasValid t
 
-nonceCheck :: String -> IO Transaction -> Account -> Bool -> Test.Framework.Test
-nonceCheck s t a e = testCase s $
-        do t' <- t
-           e @=? isNonceValid t' a
+nonceCheck :: String -> Transaction -> Account -> Bool -> Test.Framework.Test
+nonceCheck s t a e = testCase s $ e @=? isNonceValid t a
 
-upFrontCostCheck :: String -> IO Transaction -> Integer -> Test.Framework.Test
-upFrontCostCheck s t e = testCase s $
-        do t' <- t
-           e @=? upFrontCost t'
+upFrontCostCheck :: String -> Transaction -> Integer -> Test.Framework.Test
+upFrontCostCheck s t e = testCase s $ e @=? upFrontCost t
 
-balanceCheck :: String -> IO Transaction -> Account -> Bool -> Test.Framework.Test
-balanceCheck s t a e = testCase s $
-        do t' <- t
-           e @=? isBalanceAvailable t' a
+balanceCheck :: String -> Transaction -> Account -> Bool -> Test.Framework.Test
+balanceCheck s t a e = testCase s $ e @=? isBalanceAvailable t a
 
 tests ::  [Test.Framework.Test]
 tests = [ testGroup "verifications" verifyTests,
@@ -133,15 +108,15 @@ serializeTests =
         ], testGroup "Signatures" [
         roundTripSignature $ (nonSig $ acc1234)
         ], testGroup "TransactionCC" [
-        roundTripTransaction "basic"     $ cc acc1234 10 10000 1 10 (B.empty),
-        roundTripTransaction "withCode1" $ cc acc1234 10 10000 1 10 (B.replicate 10 0),
-        roundTripTransaction "withCode2" $ cc acc1234 10 10000 1 10 (B.replicate 10 0xff),
-        let v = 2^(255 :: Integer) in roundTripTransaction "bigInts"  $ cc acc1234 v v v v (B.empty)
+        roundTripTransaction $ cc acc1234 10 10000 1 10 (B.empty),
+        roundTripTransaction $ cc acc1234 10 10000 1 10 (B.replicate 10 0),
+        roundTripTransaction $ cc acc1234 10 10000 1 10 (B.replicate 10 0xff),
+        let v = 2^(255 :: Integer) in roundTripTransaction $ cc acc1234 v v v v (B.empty)
         ], testGroup "TransactionMC" [
-        roundTripTransaction "basic"     $ mc acc1234 10 10000 1 10 (A 10) (B.empty),
-        roundTripTransaction "withCode1" $ mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0),
-        roundTripTransaction "withCode2" $ mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0xff),
-        let v = 2^(255 :: Integer) in roundTripTransaction "bigInts"  $ mc acc1234 v v v v (A 10) (B.empty)
+        roundTripTransaction $ mc acc1234 10 10000 1 10 (A 10) (B.empty),
+        roundTripTransaction $ mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0),
+        roundTripTransaction $ mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0xff),
+        let v = 2^(255 :: Integer) in roundTripTransaction $ mc acc1234 v v v v (A 10) (B.empty)
         ]
         ]
 

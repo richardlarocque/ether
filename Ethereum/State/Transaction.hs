@@ -15,7 +15,6 @@ module Ethereum.State.Transaction where
 
 import Control.Applicative
 import Control.Monad
-import Crypto.Random
 import Data.Binary
 import Data.Binary.Get
 import Ethereum.Crypto
@@ -109,12 +108,12 @@ transactionHashCC c cc = hashBytes $ L.toStrict $ runPut $ putSequence $
            putContractCreation cc
 -}
 
-initContractCreation :: CPRG g => g -> PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> Transaction
-initContractCreation _cprg pr nonc v gp gl ini = T nonc v gp gl (Right (ContractCreation ini)) (nonSig pr)
+initContractCreation :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> Transaction
+initContractCreation pr nonc v gp gl ini = T nonc v gp gl (Right (ContractCreation ini)) (nonSig pr)
 
 
-initMessageCall :: CPRG g => g -> PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> Transaction
-initMessageCall _cprg pr nonc v gp gl to dat = T nonc v gp gl (Left (MessageCall to dat)) (nonSig pr)
+initMessageCall :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> Transaction
+initMessageCall pr nonc v gp gl to dat = T nonc v gp gl (Left (MessageCall to dat)) (nonSig pr)
 
 ----
 

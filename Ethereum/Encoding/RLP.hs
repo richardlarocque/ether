@@ -76,6 +76,17 @@ putSequenceBytes lb =
         do putSequenceHeader (B.length lb)
            putByteString lb
 
+putListAsSequence :: (a -> Put) -> [a] -> Put
+putListAsSequence p xs = putSequence $ mapM_ p xs
+
+getListAsSequence :: Get a -> Get [a]
+getListAsSequence g = getListAsSequence' []
+        where getListAsSequence' us = do done <- isEmpty
+                                         if done
+                                            then return (reverse us)
+                                            else do u <- g
+                                                    getListAsSequence' (u:us)
+
 putSequence ::  Put -> Put
 putSequence p1 = putSequenceBytes $ L.toStrict $ (runPut p1)
 

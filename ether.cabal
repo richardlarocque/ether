@@ -28,7 +28,7 @@ Library
                        data-lens >= 2.10 && < 2.11,
                        OddWord >= 1.0 && < 1.1
 
-  ghc-options:         -O2 -Wall
+  ghc-options:         -Wall
   exposed-modules:
       Ethereum.Common
       Ethereum.EVM.ExecutionEnvironment
@@ -71,7 +71,7 @@ Test-suite ether_tests
                        vector >= 0.10 && < 0.11,
                        OddWord >= 1.0 && < 1.1
 
-  ghc-options:         -O2 -Wall
+  ghc-options:         -Wall
 
   other-modules:
       Tests.HUnit.Account,
