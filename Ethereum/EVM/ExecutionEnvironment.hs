@@ -25,6 +25,7 @@ import Data.Word
 import Data.LargeWord
 import Data.ByteString as B
 import Ethereum.State.Address
+import Ethereum.State.Block
 
 import Ethereum.SimpleTypes
 
@@ -36,7 +37,8 @@ data ExecutionEnvironment = EE {
         input :: B.ByteString,
         caller :: Address,
         value :: Integer,
-        code :: B.ByteString
+        code :: B.ByteString,
+        blockHeader :: BlockHeader
 }
 
 intRange :: (Word256, Word256) -> (Int, Int)

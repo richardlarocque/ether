@@ -29,6 +29,7 @@ import Ethereum.SimpleTypes
 import Ethereum.Common
 import Ethereum.State.Address
 import Ethereum.State.Account
+import Ethereum.State.Block
 import Ethereum.Storage.Context
 import qualified Ethereum.FeeSchedule as F
 
@@ -87,11 +88,11 @@ outOfGasException :: ExecMonad ()
 outOfGasException = ExecMonad $ (\s -> (Left OutOfGasException, s))
 
 -- | Equation 64
-runMessageCall :: Context -> Address -> Address -> Address -> Integer -> Integer -> Integer -> B.ByteString -> ExecResult
-runMessageCall c s o r g gp v dat =
+runMessageCall :: BlockHeader -> Context -> Address -> Address -> Address -> Integer -> Integer -> Integer -> B.ByteString -> ExecResult
+runMessageCall bh c s o r g gp v dat =
         let ch = fromJust $ getAccount c r >>= return . codeHash
             cod = lookupCodeHash c ch
-            ee = EE r o gp dat s v cod
+            ee = EE r o gp dat s v cod bh
         in executeCode c g ee
 
 lookupCodeHash :: Context -> CodeHash -> B.ByteString
@@ -379,7 +380,7 @@ callOp gl toAddr v dStart dLen retStart retLen = do
         ee <- getEE
         c <- getContext
         dat <- memLoad dStart dLen
-        case runMessageCall c (address ee) (origin ee) toAddr gl (gasPrice ee) v dat of
+        case runMessageCall (blockHeader ee) c (address ee) (origin ee) toAddr gl (gasPrice ee) v dat of
                 OutOfGas -> return 0
                 Result c' ms' _ ret ->
                         do let g' = gas ms'

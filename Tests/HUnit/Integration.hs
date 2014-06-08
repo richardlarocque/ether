@@ -7,6 +7,7 @@ import Ethereum.Crypto
 import Ethereum.Execution
 import Ethereum.State.Account as A
 import Ethereum.State.Address
+import Ethereum.State.Block
 import Ethereum.State.Transaction as T
 import Ethereum.Storage.Context
 import Ethereum.Lang.Ops as L
@@ -48,11 +49,12 @@ getGeneratedAddress c t =
 buildCC :: Context -> B.ByteString -> IO (Address, Context)
 buildCC c bs =
         do let cc1 = makeCCWithCode c priv1 bs
+           let bh = genesisBlockHeader
 
            -- TODO: Find a better way to fetch the address.
            let newAddr = getGeneratedAddress c cc1
 
-           let result = doTransaction c cc1
+           let result = doTransaction bh c cc1
            assertBool "verify transaction" (isJust $ result)
 
            let Just c' = result
@@ -73,12 +75,13 @@ returnProgram prog =
 runCreatedContract :: IO ()
 runCreatedContract =
         do let c = initTestContext
+           let bh = genesisBlockHeader
 
            (contractAddr, c') <- buildCC c (returnProgram incrementCounter)
            assertEqual "ininital" 0 (accountLoad c' contractAddr 0)
 
            let mc = makeMCWithData c' priv1 contractAddr (toBytes 10)
-           let Just c'' = doTransaction c' mc
+           let Just c'' = doTransaction bh c' mc
 
            assertEqual "incremented" 1 (accountLoad c'' contractAddr 0)
 

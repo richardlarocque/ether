@@ -13,6 +13,7 @@ import Data.Monoid
 import Ethereum.Storage.Context
 import Ethereum.State.Address
 import Ethereum.State.Account
+import Ethereum.State.Block
 import Ethereum.EVM.MachineState
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.InstructionSet as E
@@ -57,7 +58,8 @@ testExecutionEnv x =
        input=inputData,
        caller=callerAddr,
        value=callValue,
-       code=x };
+       code=x,
+       blockHeader=genesisBlockHeader }
 
 runCodeTest :: Builder -> Termination -> Assertion
 runCodeTest c v = v @=? simpleRun c

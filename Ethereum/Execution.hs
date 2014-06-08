@@ -7,14 +7,15 @@ import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.MachineState
 import Ethereum.EVM.VM
 import Ethereum.Storage.Context
+import Ethereum.State.Block
 import Ethereum.State.Address
 import Ethereum.State.Account as A
 import Ethereum.State.Transaction as T
 
 import Data.ByteString as B
 
-doTransaction ::  Context -> Transaction -> Maybe Context
-doTransaction c t =
+doTransaction ::  BlockHeader -> Context -> Transaction -> Maybe Context
+doTransaction bh c t =
            -- Equation 38
         do let addr = (sender t)
            acc <- getAccount c addr
@@ -27,10 +28,10 @@ doTransaction c t =
            let (c_p, g') = case tt of
                 (Right (ContractCreation ini)) ->
                         let c_0 = ccCheckpointState c t (addr, acc)
-                        in runContractCreation c_0 addr n g gp v ini -- Eq 49
+                        in runContractCreation bh c_0 addr n g gp v ini -- Eq 49
                 (Left (MessageCall toAddr dat)) ->
                         let c_1 = mcCheckpointState c addr toAddr v
-                        in runMessageCall_ c_1  addr addr toAddr g gp v dat -- Eq 64
+                        in runMessageCall_ bh c_1  addr addr toAddr g gp v dat -- Eq 64
 
            -- Equation 45, refund some gas to the sender.
            let c_p' = creditAccount c_p addr (g'*gl)
@@ -52,20 +53,19 @@ mcCheckpointState :: Context -> Address -> Address -> Integer -> Context
 mcCheckpointState c s r v = (\cx -> creditAccount cx r v) . (\cx -> debitAccount cx s v) $ c
 
 -- | Equation 49 has a more sensible definition of Lambda than Equation 42.
-runContractCreation :: Context -> Address -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> (Context, Integer)
-runContractCreation c s n g gp v ini =
+runContractCreation :: BlockHeader -> Context -> Address -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> (Context, Integer)
+runContractCreation bh c s n g gp v ini =
         let newAddr = generateValidAddress c s n
             newAcc = Account 0 v nullStateRoot NullCodeHash  -- | Equation 54.
             c' = updateAccount c (newAddr, newAcc)
-            -- TODO initialize EE with code properly.
-            ee = EE newAddr s gp B.empty s v ini -- | Equation 57-63.
+            ee = EE newAddr s gp B.empty s v ini bh -- | Equation 57-63.
         in case executeCode c' g ee of
                 OutOfGas -> (c, 0)
                 Result c'' ms' _ body -> (updateCodeBody c'' newAddr body, gas ms')
 
-runMessageCall_ :: Context -> Address -> Address -> Address -> Integer -> Integer -> Integer -> B.ByteString -> (Context, Integer)
-runMessageCall_  c s o r g gp v dat =
-        case runMessageCall c s o r g gp v dat of
+runMessageCall_ :: BlockHeader -> Context -> Address -> Address -> Address -> Integer -> Integer -> Integer -> B.ByteString -> (Context, Integer)
+runMessageCall_ bh c s o r g gp v dat =
+        case runMessageCall bh c s o r g gp v dat of
                 OutOfGas -> (c, 0)
                 Result c' ms' _ _ret -> (c', gas ms')
 
@@ -91,4 +91,3 @@ creditAccount c addr e = fromMaybe c $ modifyAccount c addr (\a-> credit a e)
 
 debitAccount :: Context -> Address -> Integer -> Context
 debitAccount c addr e = fromMaybe c $ modifyAccount c addr (\a-> debit a e)
-
