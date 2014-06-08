@@ -1,7 +1,15 @@
 module Ethereum.BlockVerification where
 
-import Ethereum.State.Block
+import Control.Monad
+import Data.Binary
+import Data.Binary.Put
+import Data.LargeWord
+import Ethereum.Common
 import Ethereum.Execution
+import Ethereum.State.Block
+import Ethereum.Storage.Context
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as L
 
 -- Equation 17.
 isConsistent :: Context -> Block -> Bool
@@ -21,9 +29,8 @@ receiptsToTrie rs =
         in foldr (\pair c -> insertToTrie c pair) c0 pairs
 
 doBlockTransactions :: Context -> Block -> Maybe Context
-doBlockTransactions c0 b =
-        let ts = map receiptTrans $ receipts b
-        in foldM doTransaction c0 ts
+doBlockTransactions c0 (Block bh rs _) =
+        foldM (doTransaction bh) c0 (map receiptTrans rs)
 
 -- Equation 25.
 difficultyFromParent :: Integer -> BlockHeader -> Integer

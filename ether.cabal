@@ -40,6 +40,7 @@ Library
       Ethereum.FeeSchedule
       Ethereum.SimpleTypes
       Ethereum.Execution
+      Ethereum.BlockVerification
       Ethereum.State.Account
       Ethereum.State.Address
       Ethereum.State.Block
