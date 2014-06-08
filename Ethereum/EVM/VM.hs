@@ -194,12 +194,12 @@ runOp CODECOPY        = do maddr <- pop
 runOp GASPRICE        = getEE >>= push . fromEther . gasPrice
 
 -- 40s: Block Information
-runOp PREVHASH        = undefined
-runOp COINBASE        = undefined
-runOp TIMESTAMP       = undefined
-runOp NUMBER          = undefined
-runOp DIFFICULTY      = undefined
-runOp GASLIMIT        = undefined
+runOp PREVHASH        = getEE >>= push . parentHash . blockHeader
+runOp COINBASE        = getEE >>= push . fromAddress . coinbase . blockHeader
+runOp TIMESTAMP       = getEE >>= push . fromIntegral . timestamp . blockHeader
+runOp NUMBER          = getEE >>= push . fromIntegral . number . blockHeader
+runOp DIFFICULTY      = getEE >>= push . fromIntegral . difficulty . blockHeader
+runOp GASLIMIT        = getEE >>= push . fromIntegral . gasLimit . blockHeader
 
 -- 50s: Stack, Memory, Storage and Flow Operations
 runOp POP       = do { _ <- pop; return () }

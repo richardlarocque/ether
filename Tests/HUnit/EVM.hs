@@ -10,9 +10,11 @@ import Test.HUnit
 import Data.ByteString.Builder
 import Data.Monoid
 
+import Ethereum.Common
+import Ethereum.Encoding.RLP
 import Ethereum.Storage.Context
 import Ethereum.State.Address
-import Ethereum.State.Account
+import Ethereum.State.Account hiding (stateRoot)
 import Ethereum.State.Block
 import Ethereum.EVM.MachineState
 import Ethereum.EVM.ExecutionEnvironment
@@ -50,6 +52,23 @@ callValue = 5000000
 gasPriceValue :: Ether
 gasPriceValue = 1
 
+testBlockHeader :: BlockHeader
+testBlockHeader = BlockHeader {
+        parentHash = 1234,
+        unclesHash = hashPut $ putSequenceBytes B.empty,
+        coinbase = A 0xCBCB,
+        stateRoot = rootHash testContext,
+        transactionsTrie = rootHash initContext,
+        difficulty = 2 ^ (22 :: Integer),
+        timestamp = 1999,
+        number = 42,
+        minGasPrice = 1,
+        gasLimit = 10000,
+        gasUsed = 0,
+        extraData = B.empty,
+        blockNonce = 0
+}
+
 testExecutionEnv :: B.ByteString -> ExecutionEnvironment
 testExecutionEnv x =
   EE { address=ownerAddr,
@@ -59,7 +78,7 @@ testExecutionEnv x =
        caller=callerAddr,
        value=callValue,
        code=x,
-       blockHeader=genesisBlockHeader }
+       blockHeader=testBlockHeader }
 
 runCodeTest :: Builder -> Termination -> Assertion
 runCodeTest c v = v @=? simpleRun c
@@ -221,6 +240,14 @@ tests = [
                         (\memAddr -> triOp CODECOPY (p32i memAddr) (p1 0) (p1 1))
                         (fromBytes $ B.pack $ (toOpcode PUSH1) : (replicate 31 0)),
                 opTest GASPRICE (fromEther gasPriceValue)
+                ],
+        testGroup "block" [
+                opTest PREVHASH (parentHash testBlockHeader),
+                opTest COINBASE (fromAddress $ coinbase testBlockHeader),
+                opTest TIMESTAMP (fromIntegral $ timestamp testBlockHeader),
+                opTest NUMBER (fromIntegral $ number testBlockHeader),
+                opTest DIFFICULTY (fromIntegral $ difficulty testBlockHeader),
+                opTest GASLIMIT (fromIntegral $ gasLimit testBlockHeader)
                 ],
         testGroup "stack" [
                 returnTest (show POP)  ((p32 400) <> (p32 300) <> (op POP)) 400,

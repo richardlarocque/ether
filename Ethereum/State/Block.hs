@@ -1,14 +1,12 @@
 module Ethereum.State.Block where
 
 import Data.Binary
-import Data.Binary.Put
 import Data.LargeWord
 import Ethereum.Common
 import Ethereum.State.Address
 import Ethereum.State.Transaction
 import Ethereum.Encoding.RLP
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
 
 data BlockHeader = BlockHeader {
         parentHash :: Word256,
@@ -42,7 +40,7 @@ data Block = Block {
 genesisBlockHeader :: BlockHeader
 genesisBlockHeader = BlockHeader {
         parentHash = 0,
-        unclesHash = hashBytes $ L.toStrict $ runPut $ putSequenceBytes B.empty,
+        unclesHash = hashPut $ putSequenceBytes B.empty,
         stateRoot = 0,
         coinbase = A 0,
         transactionsTrie = 0,
