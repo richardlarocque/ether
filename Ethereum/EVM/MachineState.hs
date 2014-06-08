@@ -27,6 +27,7 @@ module Ethereum.EVM.MachineState(
 import Data.LargeWord
 import Data.Lens.Common
 import Data.ByteString as B
+import Ethereum.Common
 import Ethereum.EVM.ExecutionEnvironment
 import Ethereum.EVM.InstructionSet
 import Ethereum.SimpleTypes
@@ -84,7 +85,6 @@ expandMem target = updateMemSize target . updateMemVector target
 
 updateMemSize :: Word256 -> MachineState -> MachineState
 updateMemSize target = memsize' ^%= max (target `ceilDiv` 32)
-        where ceilDiv x d = (x + d - 1) `div` d
 
 updateMemVector :: Word256 -> MachineState -> MachineState
 updateMemVector target ms@MS{memory=origMem} =

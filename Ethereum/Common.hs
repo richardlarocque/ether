@@ -48,3 +48,6 @@ unBE bs = case bs of
         _ | B.length bs == 0 -> return 0
         _ | B.head bs == 0 -> fail "Unexpected leading zero(es)"
         _ -> return $ B.foldl' (\x y -> x * 256 + (fromIntegral y)) 0 bs
+
+ceilDiv :: (Integral a) => a -> a -> a
+ceilDiv x d = (x + d - 1) `div` d

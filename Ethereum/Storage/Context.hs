@@ -20,6 +20,10 @@ initContext = Context emptyMapStorage T.zeroRef
 nullStateRoot :: TreeRef
 nullStateRoot = zeroRef
 
+rootHash :: Context -> Word256
+rootHash (Context _ (TreeHash h)) = h
+rootHash (Context _ _) = undefined
+
 getAccount :: Context -> Address -> Maybe Account
 getAccount c addr = do a <- lookupInTrie c (addressAsKey addr)
                        return $ decode (L.fromStrict a)
