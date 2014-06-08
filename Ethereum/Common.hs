@@ -2,6 +2,7 @@ module Ethereum.Common where
 
 import Crypto.Hash
 import Data.Binary
+import Data.Binary.Put
 import Data.Bits
 import Data.Byteable
 import Data.Word.Odd
@@ -14,7 +15,10 @@ hashBytes :: B.ByteString -> Word256
 hashBytes bs = (decode . L.fromStrict . Data.Byteable.toBytes) (hash bs :: Digest SHA3_256)
 
 hashLazyBytes :: L.ByteString -> Word256
-hashLazyBytes = hashBytes.L.toStrict
+hashLazyBytes = hashBytes . L.toStrict
+
+hashPut :: Put -> Word256
+hashPut = hashBytes . L.toStrict . runPut
 
 lowNibble  :: Word8 -> Word4
 lowNibble x   = (fromIntegral $ 0x0f .&. x)

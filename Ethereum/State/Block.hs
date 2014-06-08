@@ -119,3 +119,7 @@ getBlock = getSequence $
            ts <- getListAsSequence getTransactionReceipt
            us <- getUncles
            return $ Block bh ts us
+
+isConsistent :: Block -> Bool
+isConsistent b = checkUncles
+        where checkUncles = (unclesHash.header) b == (hashPut $ putUncles $ uncles b)

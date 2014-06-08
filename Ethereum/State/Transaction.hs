@@ -98,12 +98,12 @@ getTransaction =
 {-
 -- Known as 'e' in Appendix F
 transactionHashMC :: TCommon -> MessageCall -> Word256
-transactionHashMC c mc = hashBytes $ L.toStrict $ runPut $ putSequence $
+transactionHashMC c mc = hashPut $ putSequence $
         do putCommon c
            putMessageCall mc
 
 transactionHashCC :: TCommon -> ContractCreation -> Word256
-transactionHashCC c cc = hashBytes $ L.toStrict $ runPut $ putSequence $
+transactionHashCC c cc = hashPut $ putSequence $
         do putCommon c
            putContractCreation cc
 -}
