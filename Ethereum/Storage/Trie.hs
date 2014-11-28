@@ -130,7 +130,7 @@ getBranch = do
         done <- isEmpty
         mi <- if not done
            then liftM Just getArray
-           else mzero
+           else return Nothing
         return $ Branch (listArray (0,15) trs) mi
 
 
