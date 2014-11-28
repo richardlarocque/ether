@@ -79,7 +79,7 @@ putMany :: Context -> [(B.ByteString, B.ByteString)] -> Context
 putMany s ps = foldr (flip insertToTrie) s (reverse ps)
 
 getMany :: Context -> [B.ByteString] -> [(B.ByteString, B.ByteString)]
-getMany s ks = mapMaybe (\k -> lookupInTrie s k >>= \v -> return (k, v)) ks
+getMany s = mapMaybe (\k -> lookupInTrie s k >>= \v -> return (k, v))
 
 -- TODO: Do this more exhaustively.
 -- TODO: Verify correctness of resulting trees.
