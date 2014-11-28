@@ -103,7 +103,7 @@ getSequenceHeader =
                       return $ fromIntegral len
 
 getSequenceBytes :: Get B.ByteString
-getSequenceBytes = getBytes =<< remaining
+getSequenceBytes = getSequence $ getBytes =<< remaining
 
 getWord8s :: Integral a => a -> Get [Word8]
 getWord8s x = replicateM (fromIntegral x) get
