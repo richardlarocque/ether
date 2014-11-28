@@ -13,25 +13,24 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 9
 
 module Ethereum.EVM.VM where
 
-import Control.Applicative (Applicative(..))
-import Control.Monad
-import Data.Binary
-import Data.Bits
-import Data.Maybe
-import Data.LargeWord
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
+import           Control.Applicative               (Applicative (..))
+import           Control.Monad
+import           Data.Bits
+import qualified Data.ByteString                   as B
+import           Data.LargeWord
+import           Data.Maybe
+import           Data.Word
 
-import Ethereum.EVM.InstructionSet as E
-import Ethereum.EVM.MachineState
-import Ethereum.EVM.ExecutionEnvironment
-import Ethereum.SimpleTypes
-import Ethereum.Common
-import Ethereum.State.Address
-import Ethereum.State.Account
-import Ethereum.State.Block
-import Ethereum.Storage.Context
-import qualified Ethereum.FeeSchedule as F
+import           Ethereum.Common
+import           Ethereum.EVM.ExecutionEnvironment
+import           Ethereum.EVM.InstructionSet       as E
+import           Ethereum.EVM.MachineState
+import qualified Ethereum.FeeSchedule              as F
+import           Ethereum.SimpleTypes
+import           Ethereum.State.Account
+import           Ethereum.State.Address
+import           Ethereum.State.Block
+import           Ethereum.Storage.Context
 
 data Termination = OutOfGasException
                  | InvalidInstruction
@@ -128,7 +127,7 @@ nextOp = do ee <- getEE
                         Just w -> return w
 
 chargeOpFee :: Instruction -> ExecMonad ()
-chargeOpFee SSTORE      = return () -- Handled in SSTORE's runOp 
+chargeOpFee SSTORE      = return () -- Handled in SSTORE's runOp
 chargeOpFee CALL        = return () -- Handled in CALL's runOp
 chargeOpFee CREATE      = undefined -- FIXME: handle this
 chargeOpFee SHA3        = chargeFee F.sha3
@@ -228,7 +227,7 @@ runOp SSTORE    = do k <- pop
                      when (orig == 0) (chargeFee F.sstore)
                      when (v /= 0) (chargeFee F.sstore)
 runOp JUMP      = pop >>= setPC
-runOp JUMPI     = do a <- pop 
+runOp JUMPI     = do a <- pop
                      c <- pop
                      if (c == 0)
                         then setPC a
@@ -384,7 +383,7 @@ callOp gl toAddr v dStart dLen retStart retLen = do
                 OutOfGas -> return 0
                 Result c' ms' _ ret ->
                         do let g' = gas ms'
-                           let ret' = fromMaybe B.empty ret 
+                           let ret' = fromMaybe B.empty ret
                            memStore retStart (B.take (fromIntegral retLen) ret')
                            putContext c'
                            remitFee g'
@@ -417,12 +416,12 @@ withSign f a b = let (aNeg, a') = unsign a
                                         else (False, x)
                           resign s1 s2 x = if s1 `xor` s2 then neg x else x
 
-extractByte :: (Integral b) => Word256 -> Word256 -> b
-extractByte b i = fromIntegral $ encode b `BL.index` fromIntegral i
+extractByte :: (Integral b) => Word256 -> Int -> b
+extractByte b i = fromIntegral $ (b .&. (0xff `shiftL` i)) `shiftR` i
 
 byteIndex ::  Word256 -> Word256 -> Word8
 byteIndex i w = if i < 32
-                   then extractByte w i
+                   then extractByte w (fromIntegral i)
                    else 0
 
 lowestByte :: Integral a => Word256 -> a

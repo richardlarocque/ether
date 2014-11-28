@@ -25,10 +25,10 @@ module Ethereum.SimpleTypes (
         memToByteString
 ) where
 
-import Data.Binary
-import Data.LargeWord
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
+import           Data.LargeWord
+import           Data.Word
+import           Ethereum.Common
 
 -- TODO: Remove a bunch of these dumb definitions.
 type Gas = Integer
@@ -65,11 +65,11 @@ blength = B.length
 -- TODO: Do better than this?
 fromBytes :: B.ByteString -> Word256
 fromBytes bs | B.length bs > 32 = error "Input list too long"
-fromBytes bs = (decode . BL.fromStrict . pad) bs
+fromBytes bs = (decode256be . pad) bs
         where pad xs = B.replicate (32 - B.length xs) 0 `B.append` xs
 
 toBytes :: Word256 -> B.ByteString
-toBytes = BL.toStrict . encode
+toBytes = encode256be
 
 emptyMemSlice :: B.ByteString
 emptyMemSlice = B.empty

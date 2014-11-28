@@ -1,17 +1,15 @@
 module Tests.HUnit.Block(tests) where
 
-import Data.Binary
-import Data.Binary.Get
-import Data.Binary.Put
-import Ethereum.Crypto
-import Ethereum.State.Block
-import Ethereum.State.Transaction
-import Ethereum.State.Address
-import Test.Framework
-import Test.Framework.Providers.HUnit
-import Test.HUnit
-import Data.ByteString as B
-import Data.ByteString.Lazy as L
+import           Data.ByteString                as B
+import           Data.ByteString.Lazy           as L
+import           Data.Serialize
+import           Ethereum.Crypto
+import           Ethereum.State.Address
+import           Ethereum.State.Block
+import           Ethereum.State.Transaction
+import           Test.Framework
+import           Test.Framework.Providers.HUnit
+import           Test.HUnit
 
 roundTripTest :: (Show a, Eq a) => (a -> Put) -> Get a -> a -> Test.Framework.Test
 roundTripTest p g x = testCase (show x) $
@@ -61,4 +59,3 @@ serializeTests =
         roundTripBlock block1
         ]
         ]
-

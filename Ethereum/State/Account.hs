@@ -13,19 +13,18 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 4.1
 
 module Ethereum.State.Account where
 
-import Data.Binary
-import Data.Binary.Get
-import Data.LargeWord
-import Ethereum.Common
-import Ethereum.Encoding.RLP
-import Ethereum.Storage.Trie
-import qualified Data.ByteString as B
+import qualified Data.ByteString       as B
+import           Data.LargeWord
+import           Data.Serialize
+import           Ethereum.Common
+import           Ethereum.Encoding.RLP
+import           Ethereum.Storage.Trie
 
 data Account = Account {
-        nonce :: Integer,
-        balance :: Integer,
+        nonce     :: Integer,
+        balance   :: Integer,
         stateRoot :: TreeRef,
-        codeHash :: CodeHash
+        codeHash  :: CodeHash
         }
         deriving Show
 
@@ -36,29 +35,29 @@ data CodeHash = CodeHash Word256
 emptyHash :: Word256
 emptyHash = hashBytes B.empty
 
-instance Binary CodeHash where
+instance Serialize CodeHash where
         put (CodeHash h) = putScalar256 h
         put (NullCodeHash) = putScalar256 (hashBytes B.empty)
 
         get = do h <- getScalar256
-                 if h == emptyHash
-                    then return $ NullCodeHash
-                    else return $ CodeHash h
+                 return $ if h == emptyHash
+                          then NullCodeHash
+                          else CodeHash h
 
-instance Binary Account where
-        put a = putSequence $ do
-                        putScalar $ nonce a
-                        putScalar $ balance a
-                        put $ stateRoot a
-                        put $ codeHash a
+instance Serialize Account where
+        put a = putSequence $
+                do putScalar $ nonce a
+                   putScalar $ balance a
+                   put $ stateRoot a
+                   put $ codeHash a
 
         get = do len <- getSequenceHeader
-                 isolate (fromIntegral len) $ do
-                         n <- getScalar
-                         b <- getScalar
-                         s <- (get :: Get TreeRef)
-                         c <- (get :: Get CodeHash)
-                         return $ Account n b s c
+                 isolate (fromIntegral len) $
+                         do n <- getScalar
+                            b <- getScalar
+                            s <- get :: Get TreeRef
+                            c <- get :: Get CodeHash
+                            return $ Account n b s c
 
 debit :: Account -> Integer -> Account
 debit a@(Account {balance=b}) i = a { balance = b - i }
@@ -68,4 +67,3 @@ credit a@(Account {balance=b}) i = a { balance = b + i }
 
 nextNonce :: Account -> Account
 nextNonce a@(Account {nonce=n}) = a { nonce = n + 1 }
-

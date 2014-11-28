@@ -1,12 +1,11 @@
 module Tests.HUnit.HexPrefix(tests) where
 
-import Test.Framework
-import Test.Framework.Providers.HUnit
-import Test.HUnit
-import Data.Binary.Get
-import Data.Binary.Put
-import Data.Word.Odd
-import Ethereum.Encoding.HexPrefix
+import           Data.Serialize
+import           Data.Word.Odd
+import           Ethereum.Encoding.HexPrefix
+import           Test.Framework
+import           Test.Framework.Providers.HUnit
+import           Test.HUnit
 
 roundTripTest :: [Word4] -> Bool -> Test.Framework.Test
 roundTripTest ns b = testCase (show (ns,b)) $ ns @=? d (e ns b)

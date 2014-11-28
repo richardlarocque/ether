@@ -1,39 +1,39 @@
 module Ethereum.State.Block where
 
-import Data.Binary
-import Data.LargeWord
-import Ethereum.Common
-import Ethereum.State.Address
-import Ethereum.State.Transaction
-import Ethereum.Encoding.RLP
-import qualified Data.ByteString as B
+import qualified Data.ByteString            as B
+import           Data.LargeWord
+import           Data.Serialize
+import           Ethereum.Common
+import           Ethereum.Encoding.RLP
+import           Ethereum.State.Address
+import           Ethereum.State.Transaction
 
 data BlockHeader = BlockHeader {
-        parentHash :: Word256,
-        unclesHash :: Word256,
-        coinbase :: Address,
-        stateRoot :: Word256,
+        parentHash       :: Word256,
+        unclesHash       :: Word256,
+        coinbase         :: Address,
+        stateRoot        :: Word256,
         transactionsTrie :: Word256,
-        difficulty :: Integer,
-        timestamp :: Integer,
-        number :: Integer,
-        minGasPrice :: Integer,
-        gasLimit :: Integer,
-        gasUsed :: Integer,
-        extraData :: B.ByteString,
-        blockNonce :: Word256
+        difficulty       :: Integer,
+        timestamp        :: Integer,
+        number           :: Integer,
+        minGasPrice      :: Integer,
+        gasLimit         :: Integer,
+        gasUsed          :: Integer,
+        extraData        :: B.ByteString,
+        blockNonce       :: Word256
 } deriving (Show, Eq)
 
 data TransactionReceipt = TransactionReceipt {
         receiptTrans :: Transaction,
         receiptState :: Word256,
-        receiptGas :: Integer
+        receiptGas   :: Integer
 } deriving (Show, Eq)
 
 data Block = Block {
-        header :: BlockHeader,
+        header   :: BlockHeader,
         receipts :: [TransactionReceipt],
-        uncles :: [BlockHeader]
+        uncles   :: [BlockHeader]
 } deriving (Show, Eq)
 
 -- Appendix I

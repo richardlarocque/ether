@@ -1,17 +1,16 @@
 module Tests.HUnit.Transaction(tests) where
 
-import Data.Binary.Put
-import Data.Binary.Get
-import Ethereum.Crypto
-import Ethereum.Storage.Trie(zeroRef)
-import Ethereum.State.Transaction
-import Ethereum.State.Account
-import Ethereum.State.Address
-import Test.Framework
-import Test.Framework.Providers.HUnit
-import Test.HUnit
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString                as B
+import qualified Data.ByteString.Lazy           as L
+import           Data.Serialize
+import           Ethereum.Crypto
+import           Ethereum.State.Account
+import           Ethereum.State.Address
+import           Ethereum.State.Transaction
+import           Ethereum.Storage.Trie          (zeroRef)
+import           Test.Framework
+import           Test.Framework.Providers.HUnit
+import           Test.HUnit
 
 roundTripTest :: (Show a, Eq a) => (a -> Put) -> (Get a) -> a -> Test.Framework.Test
 roundTripTest p g x = testCase (show x) $
@@ -119,4 +118,3 @@ serializeTests =
         let v = 2^(255 :: Integer) in roundTripTransaction $ mc acc1234 v v v v (A 10) (B.empty)
         ]
         ]
-

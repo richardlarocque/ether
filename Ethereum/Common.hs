@@ -1,30 +1,42 @@
 module Ethereum.Common where
 
-import Crypto.Hash
-import Data.Binary
-import Data.Binary.Put
-import Data.Bits
-import Data.Byteable
-import Data.Word.Odd
-import Data.LargeWord
-import Data.List
-import qualified Data.ByteString as B
+import           Crypto.Hash
+import           Data.Bits
+import           Data.Byteable
+import qualified Data.ByteString      as B
 import qualified Data.ByteString.Lazy as L
+import           Data.LargeWord
+import           Data.List
+import           Data.Serialize
+import           Data.Word
+import           Data.Word.Odd
+
+encode256be :: Word256 -> B.ByteString
+encode256be n = B.pack $ reverse $ take 32 $
+                map fromIntegral $ iterate (`shiftR` 8) n
+
+decode256be :: B.ByteString -> Word256
+decode256be bytes = foldl iter 0 (B.unpack bytes)
+  where iter accum b = accum * 256 + fromIntegral b
+
+decode160be :: B.ByteString -> Word160
+decode160be bytes = foldl iter 0 (B.unpack bytes)
+  where iter accum b = accum * 256 + fromIntegral b
 
 hashBytes :: B.ByteString -> Word256
-hashBytes bs = (decode . L.fromStrict . Data.Byteable.toBytes) (hash bs :: Digest SHA3_256)
+hashBytes bs = (decode256be . toBytes) (hash bs :: Digest SHA3_256)
 
 hashLazyBytes :: L.ByteString -> Word256
 hashLazyBytes = hashBytes . L.toStrict
 
 hashPut :: Put -> Word256
-hashPut = hashBytes . L.toStrict . runPut
+hashPut = hashBytes . runPut
 
 lowNibble  :: Word8 -> Word4
-lowNibble x   = (fromIntegral $ 0x0f .&. x)
+lowNibble x   = fromIntegral $ 0x0f .&. x
 
 highNibble :: Word8 -> Word4
-highNibble x  = (fromIntegral $ x `shiftR` 4)
+highNibble x  = fromIntegral $ x `shiftR` 4
 
 toHigh :: Word4 -> Word8
 toHigh = (16*).fromIntegral
@@ -47,7 +59,7 @@ unBE :: Monad m => B.ByteString -> m Integer
 unBE bs = case bs of
         _ | B.length bs == 0 -> return 0
         _ | B.head bs == 0 -> fail "Unexpected leading zero(es)"
-        _ -> return $ B.foldl' (\x y -> x * 256 + (fromIntegral y)) 0 bs
+        _ -> return $ B.foldl' (\x y -> x * 256 + fromIntegral y) 0 bs
 
 ceilDiv :: (Integral a) => a -> a -> a
 ceilDiv x d = (x + d - 1) `div` d

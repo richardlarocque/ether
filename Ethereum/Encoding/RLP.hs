@@ -13,14 +13,12 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Appendix C
 
 module Ethereum.Encoding.RLP where
 
-import Control.Monad
-import Data.Binary
-import Data.Binary.Get
-import Data.Binary.Put
-import Data.LargeWord
-import Ethereum.Common
-import qualified Data.ByteString.Lazy as L
+import           Control.Monad
 import qualified Data.ByteString as B
+import           Data.LargeWord
+import           Data.Serialize
+import           Data.Word
+import           Ethereum.Common
 
 putArray ::  B.ByteString -> Put
 putArray bs = case bs of
@@ -88,7 +86,7 @@ getListAsSequence g = do len <- getSequenceHeader
                                                     getListAsSequence' (u:us)
 
 putSequence ::  Put -> Put
-putSequence p1 = putSequenceBytes $ L.toStrict $ runPut p1
+putSequence p1 = putSequenceBytes $ runPut p1
 
 getSequence :: Get a -> Get a
 getSequence g1 =
@@ -105,7 +103,9 @@ getSequenceHeader =
                       return $ fromIntegral len
 
 getSequenceBytes :: Get B.ByteString
-getSequenceBytes = liftM L.toStrict $ getSequence getRemainingLazyByteString
+getSequenceBytes =
+    do rem <- remaining
+       getBytes rem
 
 getWord8s :: Integral a => a -> Get [Word8]
 getWord8s x = replicateM (fromIntegral x) get

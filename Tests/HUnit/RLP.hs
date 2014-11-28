@@ -1,17 +1,15 @@
 module Tests.HUnit.RLP(tests) where
 
-import Data.Char
-import Data.Binary
-import Data.Binary.Get
-import Data.Binary.Put
-import Data.Either
-import Data.LargeWord
-import Ethereum.Encoding.RLP
-import Test.Framework
-import Test.Framework.Providers.HUnit
-import Test.HUnit
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString                as B
+import qualified Data.ByteString.Lazy           as L
+import           Data.Char
+import           Data.Either
+import           Data.LargeWord
+import           Data.Serialize
+import           Ethereum.Encoding.RLP
+import           Test.Framework
+import           Test.Framework.Providers.HUnit
+import           Test.HUnit
 
 roundTripTest :: (Show a, Eq a) => (a -> L.ByteString) -> (L.ByteString -> a) -> a -> Test.Framework.Test
 roundTripTest e d x = testCase (show x) $ x @=? (d.e) x
@@ -35,7 +33,7 @@ data Seq1 = Seq1 Word256 Word256 [Word8] Word256
         deriving (Show, Eq)
 
 instance Binary Seq1 where
-        put (Seq1 s1 s2 b3 s4) = putSequence $ do 
+        put (Seq1 s1 s2 b3 s4) = putSequence $ do
                 putScalar256 s1
                 putScalar256 s2
                 putArray (B.pack b3)

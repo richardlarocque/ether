@@ -1,21 +1,21 @@
 module Tests.HUnit.Trie(tests) where
 
-import Data.Array
-import Data.Binary
-import Data.Char
-import Data.Maybe
-import Data.Word.Odd
-import Ethereum.Common
-import Ethereum.Storage.Trie
-import Ethereum.Storage.HashMap
-import Ethereum.Storage.Context
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
-import Test.HUnit
-import Test.Framework
-import Test.Framework.Providers.HUnit
+import           Data.Array
+import qualified Data.ByteString                as B
+import qualified Data.ByteString.Lazy           as L
+import           Data.Char
+import           Data.Maybe
+import           Data.Serialize
+import           Data.Word.Odd
+import           Ethereum.Common
+import           Ethereum.Storage.Context
+import           Ethereum.Storage.HashMap
+import           Ethereum.Storage.Trie
+import           Test.Framework
+import           Test.Framework.Providers.HUnit
+import           Test.HUnit
 
-roundTripTest :: (Show a, Eq a, Binary a) => a -> Test.Framework.Test
+roundTripTest :: (Show a, Eq a, Serialize a) => a -> Test.Framework.Test
 roundTripTest x = testCase (show x) $ x @=? (decode.encode) x
 
 item :: [Word8] -> B.ByteString
@@ -81,8 +81,8 @@ putAndGetTest pairs =
         testCase (show pairs) $ pairs' @=? (putAndGet pairs')
 
 putAndGet :: [(B.ByteString, B.ByteString)] -> [(B.ByteString, B.ByteString)]
-putAndGet ps = getMany (putMany initContext ps) (map fst ps)  
-        
+putAndGet ps = getMany (putMany initContext ps) (map fst ps)
+
 putMany :: Context -> [(B.ByteString, B.ByteString)] -> Context
 putMany s ps = foldr (flip insertToTrie) s (reverse ps)
 

@@ -1,13 +1,13 @@
 module Ethereum.Lang.Ops where
 
-import Data.Word
-import Data.LargeWord
-import Data.ByteString.Builder
-import Data.Binary
-import Data.Monoid
-import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString as B
-import Ethereum.EVM.InstructionSet
+import qualified Data.ByteString             as B
+import           Data.ByteString.Builder
+import qualified Data.ByteString.Lazy        as L
+import           Data.LargeWord
+import           Data.Monoid
+import           Data.Word
+import           Ethereum.Common
+import           Ethereum.EVM.InstructionSet
 
 type TriOp = Builder -> Builder -> Builder -> Builder
 type BinOp = Builder -> Builder -> Builder
@@ -20,7 +20,7 @@ compile = L.toStrict . toLazyByteString
 --
 
 word256BE :: Word256 -> Builder
-word256BE = lazyByteString . encode
+word256BE = byteString . encode256be
 
 p32 :: Word256 -> Builder
 p32 x = let x' = fromIntegral x :: Word256

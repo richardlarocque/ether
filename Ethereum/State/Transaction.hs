@@ -13,16 +13,15 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 4.1
 
 module Ethereum.State.Transaction where
 
-import Control.Applicative
-import Control.Monad
-import Data.Binary
-import Data.Binary.Get
-import Ethereum.Crypto
-import Ethereum.Encoding.RLP
-import Ethereum.State.Address
+import           Control.Applicative
+import           Control.Monad
+import qualified Data.ByteString        as B
+import           Data.Serialize
+import           Ethereum.Crypto
+import           Ethereum.Encoding.RLP
+import qualified Ethereum.FeeSchedule   as F
 import qualified Ethereum.State.Account as A
-import qualified Ethereum.FeeSchedule as F
-import qualified Data.ByteString as B
+import           Ethereum.State.Address
 
 data Transaction = T
         Integer -- n
@@ -44,7 +43,7 @@ nonce (T n _ _ _ _ _) = n
 
 putContractCreation :: ContractCreation -> Put
 putContractCreation (ContractCreation ini) =
-        do putAddress $ zeroAddress  -- The blank 'to' address
+        do putAddress zeroAddress  -- The blank 'to' address
            -- FIXME: Where and what is T_b?
            putArray ini  -- T_i
 
@@ -125,9 +124,9 @@ isGasValid t@(T _ _ _ gl _ _) = intrinsicGas t < gl
 
 -- Equation (36)
 intrinsicGas :: Transaction -> Integer
-intrinsicGas (T _ _ _ _ (Left (MessageCall _ dat)) _) = 
+intrinsicGas (T _ _ _ _ (Left (MessageCall _ dat)) _) =
         F.transaction + F.txdata * (fromIntegral $ B.length dat)
-intrinsicGas (T _ _ _ _ (Right (ContractCreation ini)) _) = 
+intrinsicGas (T _ _ _ _ (Right (ContractCreation ini)) _) =
         F.transaction + F.txdata * (fromIntegral $ B.length ini)
 
 -- Equation (37)

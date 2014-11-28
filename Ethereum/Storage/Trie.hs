@@ -1,4 +1,5 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 {- |
 Module      :  Ethereum.Storage.Trie
@@ -23,22 +24,24 @@ module Ethereum.Storage.Trie(
 
 -- TODO: Many of those exports are meant only for tests...
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Reader
-import Data.Array
-import Data.Binary
-import Data.Binary.Get
-import Data.LargeWord
-import Data.Maybe
-import Data.Word.Odd
-import qualified Data.List as DL
-import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString as B
-import Ethereum.Common
-import Ethereum.Storage.HashMap
-import Ethereum.Encoding.HexPrefix
-import Ethereum.Encoding.RLP
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.Reader
+import           Data.Array
+import qualified Data.ByteString             as B
+import           Data.LargeWord
+import qualified Data.List                   as DL
+import           Data.Maybe
+import           Data.Serialize
+import           Data.Word.Odd
+import           Ethereum.Common
+import           Ethereum.Encoding.HexPrefix
+import           Ethereum.Encoding.RLP
+import           Ethereum.Storage.HashMap
+
+-- TODO: Stop using this.
+ignoreFailure :: Either a b -> b
+ignoreFailure (Right b) = b
 
 data Tree = Empty
           | Leaf [Word4] B.ByteString
@@ -47,7 +50,7 @@ data Tree = Empty
           deriving (Show, Eq)
 
 data TreeRef = Serialized B.ByteString
-             | TreeHash Word256 
+             | TreeHash Word256
              deriving (Show, Eq)
 
 instance Ix Word4 where
@@ -57,15 +60,15 @@ instance Ix Word4 where
 
 ----
 
-instance Binary TreeRef where
+instance Serialize TreeRef where
         put (Serialized bs) = putSequenceBytes bs
         put (TreeHash h) = putScalar256 h
 
         get = getHash <|> getSerialized
-                where getHash = getScalar256 >>= return.TreeHash
-                      getSerialized = getSequenceBytes >>= return.Serialized
+                where getHash = liftM TreeHash getScalar256
+                      getSerialized = liftM Serialized getSequenceBytes
 
-instance Binary Tree where
+instance Serialize Tree where
         put (Empty) = error "Can't directly put empty tree"
         put (Leaf ns i) = putSequence $ do
                 putHexPrefix ns True
@@ -87,19 +90,19 @@ instance Binary Tree where
 tref :: Tree -> TreeRef
 tref Empty = TreeHash 0
 tref t     = let serialized = encode t
-                  in if L.length serialized < 32
-                        then Serialized (L.toStrict serialized)
-                        else TreeHash $ hashLazyBytes serialized
+                  in if B.length serialized < 32
+                        then Serialized serialized
+                        else TreeHash $ hashBytes serialized
 
 deref :: TreeRef -> Reader MapStorage Tree
 deref tr =
         case tr of
                 TreeHash 0 -> return Empty
-                TreeHash h -> do 
+                TreeHash h -> do
                         s <- ask
-                        let bs = fromMaybe (error "lookup failed") (load h s) 
-                        return $ runGet get (L.fromStrict bs)
-                Serialized bs -> return $ runGet get (L.fromStrict bs)
+                        let bs = fromMaybe (error "lookup failed") (load h s)
+                        return $ ignoreFailure $ runGet get bs
+                Serialized bs -> return $ ignoreFailure $ runGet get bs
 
 -----
 
@@ -126,8 +129,8 @@ getBranch = do
         trs <- replicateM 16 (get :: Get TreeRef)
         done <- isEmpty
         mi <- if not done
-           then getArray >>= return.Just
-           else return Nothing
+           then liftM Just getArray
+           else mzero
         return $ Branch (listArray (0,15) trs) mi
 
 
@@ -143,7 +146,7 @@ lookup tr k = do t <- deref tr
 storeTree :: MapStorage -> Tree -> MapStorage
 storeTree s t = case tref t of
         TreeHash 0 -> s
-        TreeHash k -> store k (L.toStrict $ encode t) s
+        TreeHash k -> store k (encode t) s
         _ -> s
 
 -- Helpers

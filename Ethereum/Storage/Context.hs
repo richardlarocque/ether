@@ -1,18 +1,21 @@
 module Ethereum.Storage.Context where
 
-import Data.Maybe
-import Data.Binary
-import Control.Monad.Reader(runReader)
-import Ethereum.State.Account
-import Ethereum.State.Address
-import Ethereum.SimpleTypes
-import Ethereum.Storage.HashMap
-import Ethereum.Storage.Trie as T
-import Data.LargeWord
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
+import           Control.Monad.Reader     (runReader)
+import qualified Data.ByteString          as B
+import           Data.LargeWord
+import           Data.Maybe
+import           Data.Serialize
+import           Ethereum.SimpleTypes
+import           Ethereum.State.Account
+import           Ethereum.State.Address
+import           Ethereum.Storage.HashMap
+import           Ethereum.Storage.Trie    as T
 
 data Context = Context MapStorage TreeRef
+
+-- FIXME: Stop using this.
+ignoreFailure :: Either l r -> r
+ignoreFailure (Right r) = r
 
 initContext :: Context
 initContext = Context emptyMapStorage T.zeroRef
@@ -26,11 +29,11 @@ rootHash (Context _ _) = undefined
 
 getAccount :: Context -> Address -> Maybe Account
 getAccount c addr = do a <- lookupInTrie c (addressAsKey addr)
-                       return $ decode (L.fromStrict a)
+                       return $ ignoreFailure $ decode a
 
 updateAccount :: Context -> (Address, Account) -> Context
 updateAccount c (addr, acc) =
-        insertToTrie c (addressAsKey addr, (L.toStrict . encode) acc)
+        insertToTrie c (addressAsKey addr, encode acc)
 
 modifyAccount :: Context -> Address -> (Account -> Account) -> Maybe Context
 modifyAccount c addr f = do acc <- getAccount c addr
@@ -58,7 +61,7 @@ accountStore :: Context -> Address -> (Word256, Word256) -> Context
 accountStore c@(Context s tr) addr (k, v) =
         fromMaybe c $
         do acc <- getAccount c addr
-           let accountContext = (Context s (stateRoot acc))
+           let accountContext = Context s (stateRoot acc)
            let (kb, vb) = (toBytes k, toBytes v)
            let (Context s' acc_tr') = insertToTrie accountContext (kb, vb)
            let acc' = acc{stateRoot=acc_tr'}
@@ -69,8 +72,7 @@ accountLoad :: Context -> Address -> Word256 -> Word256
 accountLoad c@(Context s _) addr k =
         fromMaybe 0 $
         do acc <- getAccount c addr
-           let accountContext = (Context s (stateRoot acc))
+           let accountContext = Context s (stateRoot acc)
            let kb = toBytes k
            vb <- lookupInTrie accountContext kb
            return $ fromBytes vb
-

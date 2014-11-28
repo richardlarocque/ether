@@ -4,25 +4,26 @@ module Ethereum.Crypto where
 -- libraries I'm using and random number generators they rely on probably
 -- weren't written by cryptographers either.  Do not trust this.
 
-import Control.Applicative
-import Control.Monad
-import Crypto.Hash
-import Crypto.PubKey.ECC.ECDSA
-import Crypto.Random
-import Crypto.Types.PubKey.ECC
-import Data.Binary
-import Data.Binary.Put
-import Data.Binary.Get
-import Data.Byteable
-import Data.LargeWord
-import Ethereum.State.Address
-import Ethereum.Encoding.RLP
-
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
+import           Control.Applicative
+import           Control.Monad
+import           Crypto.Hash
+import           Crypto.PubKey.ECC.ECDSA
+import           Crypto.Random
+import           Crypto.Types.PubKey.ECC
+import           Data.Byteable
+import qualified Data.ByteString         as B
+import           Data.LargeWord
+import           Data.Serialize
+import           Ethereum.Common
+import           Ethereum.Encoding.RLP
+import           Ethereum.State.Address
 
 -- TODO: This is where we would store the private key
 data PrivateAccount = PrivateAccount Address
+
+-- TODO: Don't use this helper ever.
+ignoreFailure :: Either a b -> b
+ignoreFailure (Right r) = r
 
 addressFromPriv :: PrivateAccount -> Address
 addressFromPriv (PrivateAccount a) = a
@@ -69,17 +70,17 @@ privToPublic PrivateKey{private_curve=c, private_d=d} = toPublicKey $ KeyPair c 
 
 publicToBytes :: PublicKey -> B.ByteString
 publicToBytes PublicKey { public_q=(Point a b) } =
-        L.toStrict $ runPut $ do { put a; put b }
+        runPut $ do { put a; put b }
 
 publicFromBytes :: B.ByteString -> PublicKey
 publicFromBytes bs =
-        runGet getPub $ L.fromStrict bs
+        ignoreFailure $ runGet getPub $ bs
         where getPub = do a <- get
                           b <- get
                           return $ PublicKey curve (Point a b)
 
 publicAsAddress :: B.ByteString -> Address
-publicAsAddress pu = A $ runGet get $ L.fromStrict $ B.drop 44 $ pu
+publicAsAddress pu = A $ decode160be $ B.drop 44 $ pu
 
 signTransaction :: CPRG g => g -> PrivateKey -> B.ByteString -> TSignature
 signTransaction cprg pk bs =

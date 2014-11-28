@@ -13,24 +13,19 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Appendix D
 
 module Ethereum.Encoding.HexPrefix where
 
-import Data.Binary
-import Data.Binary.Get
-import Data.Binary.Put
-import Data.Bits
-import Data.Word.Odd
-import Ethereum.Encoding.RLP
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
-
-import Ethereum.Common
+import           Control.Monad
+import           Data.Bits
+import           Data.Serialize
+import           Data.Word
+import           Data.Word.Odd
+import           Ethereum.Common
+import           Ethereum.Encoding.RLP
 
 data HPArray = HPArray [Word4] Bool
         deriving (Show,Eq)
 
 putHexPrefix :: [Word4] -> Bool -> Put
-putHexPrefix ns f =
-        let bs = runPut (putHexPrefixBytes ns f)
-        in putArray (L.toStrict bs)
+putHexPrefix ns f = putArray $ runPut (putHexPrefixBytes ns f)
 
 getHexPrefix :: Bool -> Get [Word4]
 getHexPrefix f = do
@@ -40,13 +35,14 @@ getHexPrefix f = do
 putHexPrefixBytes :: [Word4] -> Bool -> Put
 putHexPrefixBytes ns b = do
         let ft = if b then 2 else 0 :: Word8
-        let (b0, rest) = case (even.length) ns of 
-                True  -> (((16 * ft)       + (0)                     ),       ns )
-                False -> (((16 * (ft + 1)) + ((fromIntegral.head) ns)), (tail ns))
+        let (b0, rest) =
+                if (even.length) ns
+                then (16 * ft       +  0                    ,      ns)
+                else (16 * (ft + 1) + (fromIntegral.head) ns, tail ns)
         put b0
         mapM_ putWord8 (pairBytes rest)
         where pairBytes :: [Word4] -> [Word8]
-              pairBytes (n1:n2:rest) = (makeByte n1 n2) : pairBytes rest
+              pairBytes (n1:n2:rest) = makeByte n1 n2 : pairBytes rest
               pairBytes [] = []
               pairBytes [_] = error "Unexpected unpair input"
               makeByte h l = toHigh h + toLow l
@@ -63,8 +59,9 @@ getHexPrefix' = do
         b <- getWord8
         let ft = b `testBit` 5
         let isEven = not $ b `testBit` 4
-        let prefix = if (isEven)
+        let prefix = if isEven
                         then []
                         else [lowNibble b]
-        bs <- getRemainingLazyByteString
-        return $ HPArray (prefix ++ (nibbleize (L.unpack bs))) ft
+        bs <- do r <- remaining
+                 replicateM r getWord8
+        return $ HPArray (prefix ++ nibbleize bs) ft

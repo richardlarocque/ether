@@ -1,15 +1,13 @@
 module Ethereum.BlockVerification where
 
-import Control.Monad
-import Data.Binary
-import Data.Binary.Put
-import Data.LargeWord
-import Ethereum.Common
-import Ethereum.Execution
-import Ethereum.State.Block
-import Ethereum.Storage.Context
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
+import           Control.Monad
+import qualified Data.ByteString          as B
+import           Data.LargeWord
+import           Data.Serialize
+import           Ethereum.Common
+import           Ethereum.Execution
+import           Ethereum.State.Block
+import           Ethereum.Storage.Context
 
 -- Equation 17.
 isConsistent :: Context -> Block -> Bool
@@ -23,10 +21,10 @@ isConsistent c b = checkUncles && checkReceipts && checkState
 receiptsToTrie :: [TransactionReceipt] -> Context
 receiptsToTrie rs =
         let keys = map asBE ([0..] :: [Integer])
-            values = map (L.toStrict . runPut . putTransactionReceipt) rs
+            values = map (runPut . putTransactionReceipt) rs
             pairs = zip keys values
             c0 = initContext
-        in foldr (\pair c -> insertToTrie c pair) c0 pairs
+        in foldr (flip insertToTrie) c0 pairs
 
 doBlockTransactions :: Context -> Block -> Maybe Context
 doBlockTransactions c0 (Block bh rs _) =
@@ -54,7 +52,7 @@ isBlockNonceValid bh =
 
 proofOfWork :: BlockHeader -> Word256 -> Word256
 proofOfWork bh nonc =
-        hashPut . put $ hashPut $ do { putBlockHeaderWithoutNonce bh; put nonc }
+        hashBytes . encode256be $ hashPut $ do { putBlockHeaderWithoutNonce bh; put $ encode256be nonc }
 
 -- Equations 30-34.
 isHeaderValid :: BlockHeader -> BlockHeader -> Bool

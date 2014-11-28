@@ -7,15 +7,13 @@ module Ethereum.State.Address(
         zeroAddress,
         generateAddress) where
 
-import Control.Monad
-import Data.ByteString as B
-import Data.ByteString.Lazy as L
-import Data.LargeWord
-import Data.Binary
-import Data.Binary.Put
-import Data.Bits
-import Ethereum.Common
-import Ethereum.Encoding.RLP
+import           Control.Monad
+import           Data.Bits
+import           Data.ByteString       as B
+import           Data.LargeWord
+import           Data.Serialize
+import           Ethereum.Common
+import           Ethereum.Encoding.RLP
 
 data Address = A Word160 deriving (Show, Eq)
 
@@ -33,7 +31,7 @@ putAddress :: Address -> Put
 putAddress = putScalar . fromAddress
 
 getAddress :: Get Address
-getAddress = liftM (A . fromIntegral) getScalar 
+getAddress = liftM (A . fromIntegral) getScalar
 
 zeroAddress :: Address
 zeroAddress = A 0
@@ -43,6 +41,6 @@ zeroAddress = A 0
 -- | we account things differently so we don't need to decrement
 -- | the nonce by 1.
 generateAddress :: Address -> Integer -> Address
-generateAddress a n =
-        let seed = runPut $ putSequence $ do { putAddress a; putScalar n }
-        in fromHash $ hashBytes $ L.toStrict seed
+generateAddress a n = fromHash $ hashBytes $
+                      runPut $ putSequence $
+                      do { putAddress a; putScalar n }
