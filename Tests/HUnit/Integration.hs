@@ -1,21 +1,20 @@
 module Tests.HUnit.Integration(tests) where
 
-import Data.Monoid
-import Control.Monad
-import Data.Maybe
-import Ethereum.Crypto
-import Ethereum.Execution
-import Ethereum.State.Account as A
-import Ethereum.State.Address
-import Ethereum.State.Block
-import Ethereum.State.Transaction as T
-import Ethereum.Storage.Context
-import Ethereum.Lang.Ops as L
-import Ethereum.SimpleTypes
-import Test.Framework
-import Test.Framework.Providers.HUnit
-import Test.HUnit
-import qualified Data.ByteString as B
+import           Control.Monad
+import qualified Data.ByteString            as B
+import           Data.Maybe
+import           Data.Monoid
+import           Ethereum.Crypto
+import           Ethereum.Execution
+import           Ethereum.Lang.Ops          as L
+import           Ethereum.SimpleTypes
+import           Ethereum.State.Account     as A
+import           Ethereum.State.Address
+import           Ethereum.State.Block
+import           Ethereum.State.Transaction as T
+import           Ethereum.Storage.Context
+import           Test.Tasty
+import           Test.Tasty.HUnit
 
 priv1 :: PrivateAccount
 priv1 = makePrivateAccount 1234
@@ -26,7 +25,7 @@ acc1 = Account 0 90000 nullStateRoot NullCodeHash
 initTestContext :: Context
 initTestContext =
         let c0 = initContext
-        in updateAccount c0 (addressFromPriv priv1, acc1) 
+        in updateAccount c0 (addressFromPriv priv1, acc1)
 
 makeCCWithCode :: Context -> PrivateAccount -> B.ByteString -> Transaction
 makeCCWithCode c pr cs =
@@ -62,8 +61,8 @@ buildCC c bs =
 
            return (newAddr, c')
 
-contactCreationTest :: IO ()
-contactCreationTest =
+contractCreationTest :: TestTree
+contractCreationTest = testCase "contractCreationTest" $
         do let c = initTestContext
            void $ buildCC c B.empty
 
@@ -72,8 +71,8 @@ returnProgram prog =
         compile $ memLiteral 0 prog
                <> returnOp (p1 0) (p32 (fromIntegral $ B.length prog))
 
-runCreatedContract :: IO ()
-runCreatedContract =
+runCreatedContract :: TestTree
+runCreatedContract = testCase "runCreatedContract" $
         do let c = initTestContext
            let bh = genesisBlockHeader
 
@@ -89,6 +88,7 @@ runCreatedContract =
                 sstore (p1 0) (add (p1 1) (sload (p1 0)))
 
 
-tests ::  [Test.Framework.Test]
-tests = [ testCase "createContract" (contactCreationTest),
-          testCase "runCreatedContract" runCreatedContract ]
+tests ::  TestTree
+tests = testGroup "Integration"
+        [ contractCreationTest,
+          runCreatedContract ]

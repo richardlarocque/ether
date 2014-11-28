@@ -1,31 +1,23 @@
 module Tests.HUnit.Trie(tests) where
 
 import           Data.Array
-import qualified Data.ByteString                as B
-import qualified Data.ByteString.Lazy           as L
+import qualified Data.ByteString          as B
 import           Data.Char
 import           Data.Maybe
-import           Data.Serialize
+import           Data.Word
 import           Data.Word.Odd
 import           Ethereum.Common
 import           Ethereum.Storage.Context
-import           Ethereum.Storage.HashMap
 import           Ethereum.Storage.Trie
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.HUnit
-
-roundTripTest :: (Show a, Eq a, Serialize a) => a -> Test.Framework.Test
-roundTripTest x = testCase (show x) $ x @=? (decode.encode) x
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import           Tests.Helpers
 
 item :: [Word8] -> B.ByteString
 item = B.pack
 
-unpackItem :: B.ByteString -> [Word8]
-unpackItem = B.unpack
-
 key :: String -> [Word4]
-key = nibbleize.(map (fromIntegral.ord))
+key = nibbleize . map (fromIntegral.ord)
 
 nullBranchArray :: Array Word4 TreeRef
 nullBranchArray = listArray (0,15) (replicate 16 (TreeHash 0))
@@ -36,49 +28,49 @@ fullBranchArray1 = listArray (0,15) (map TreeHash [0..16])
 fullBranchArray2 :: Array Word4 TreeRef
 fullBranchArray2 = listArray (0,15) (map (Serialized . B.singleton) [0..16])
 
-serialize_tests :: Test.Framework.Test
-serialize_tests = testGroup "Serialization" [
+serializeTests :: TestTree
+serializeTests = testGroup "Serialization" [
         testGroup "Item" [
-                roundTripTest $ item [],
-                roundTripTest $ item [1],
-                roundTripTest $ item [128],
-                roundTripTest $ item [0..128]
+                genericRoundTripTest $ item [],
+                genericRoundTripTest $ item [1],
+                genericRoundTripTest $ item [128],
+                genericRoundTripTest $ item [0..128]
                 ],
         testGroup "TreeRef" [
-                roundTripTest $ Serialized (B.pack []),
-                roundTripTest $ Serialized (B.pack [1]),
-                roundTripTest $ Serialized (B.pack [128]),
-                roundTripTest $ Serialized (B.pack [0..128]),
-                roundTripTest $ TreeHash 1234
+                genericRoundTripTest $ Serialized (B.pack []),
+                genericRoundTripTest $ Serialized (B.pack [1]),
+                genericRoundTripTest $ Serialized (B.pack [128]),
+                genericRoundTripTest $ Serialized (B.pack [0..128]),
+                genericRoundTripTest $ TreeHash 1234
                 ],
         testGroup "Tree Leaf" [
-                roundTripTest $ Leaf (key "abc") (item []),
-                roundTripTest $ Leaf (key "de") (item [1]),
-                roundTripTest $ Leaf (key "ff") (item [254]),
-                roundTripTest $ Leaf (key "\0") (item [128])
+                genericRoundTripTest $ Leaf (key "abc") (item []),
+                genericRoundTripTest $ Leaf (key "de") (item [1]),
+                genericRoundTripTest $ Leaf (key "ff") (item [254]),
+                genericRoundTripTest $ Leaf (key "\0") (item [128])
                 ],
         testGroup "Tree Extension" [
-                roundTripTest $ Extension (key "abc") (TreeHash 10),
-                roundTripTest $ Extension (key "\x0f") (TreeHash 456),
-                roundTripTest $ Extension (key "\xff") (TreeHash 123),
-                roundTripTest $ Extension (key "zxy") (Serialized $ B.pack [128])
+                genericRoundTripTest $ Extension (key "abc") (TreeHash 10),
+                genericRoundTripTest $ Extension (key "\x0f") (TreeHash 456),
+                genericRoundTripTest $ Extension (key "\xff") (TreeHash 123),
+                genericRoundTripTest $ Extension (key "zxy") (Serialized $ B.pack [128])
                 ],
         testGroup "Tree Branch" [
-                roundTripTest $ Branch nullBranchArray Nothing,
-                roundTripTest $ Branch nullBranchArray  $ Just (item []),
-                roundTripTest $ Branch nullBranchArray  $ Just (item [1]),
-                roundTripTest $ Branch fullBranchArray1 $ Just (item [1..128]),
-                roundTripTest $ Branch fullBranchArray2 $ Just (item [0..10])
+                genericRoundTripTest $ Branch nullBranchArray Nothing,
+                genericRoundTripTest $ Branch nullBranchArray  $ Just (item []),
+                genericRoundTripTest $ Branch nullBranchArray  $ Just (item [1]),
+                genericRoundTripTest $ Branch fullBranchArray1 $ Just (item [1..128]),
+                genericRoundTripTest $ Branch fullBranchArray2 $ Just (item [0..10])
                 ]
         ]
 
 toBS :: String -> B.ByteString
 toBS = B.pack . map (fromIntegral . ord)
 
-putAndGetTest :: [(String, String)] -> Test.Framework.Test
+putAndGetTest :: [(String, String)] -> TestTree
 putAndGetTest pairs =
         let pairs' = map (\(a,b) -> (toBS a, toBS b)) pairs in
-        testCase (show pairs) $ pairs' @=? (putAndGet pairs')
+        testCase (show pairs) $ pairs' @=? putAndGet pairs'
 
 putAndGet :: [(B.ByteString, B.ByteString)] -> [(B.ByteString, B.ByteString)]
 putAndGet ps = getMany (putMany initContext ps) (map fst ps)
@@ -91,8 +83,8 @@ getMany s ks = mapMaybe (\k -> lookupInTrie s k >>= \v -> return (k, v)) ks
 
 -- TODO: Do this more exhaustively.
 -- TODO: Verify correctness of resulting trees.
-insert_tests ::  Test.Framework.Test
-insert_tests = testGroup "Insertion" [
+insertTests ::  TestTree
+insertTests = testGroup "Insertion" [
         testGroup "InsertBranches" [
                 putAndGetTest [("a", "xyz")],
                 putAndGetTest [("a", "xyz"), ("ab", "zed")],
@@ -119,5 +111,5 @@ insert_tests = testGroup "Insertion" [
         ]
         ]
 
-tests :: [Test.Framework.Test]
-tests = [ serialize_tests, insert_tests ]
+tests :: TestTree
+tests = testGroup "Trie" [ serializeTests, insertTests ]

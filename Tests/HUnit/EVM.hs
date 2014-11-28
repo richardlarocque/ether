@@ -1,35 +1,34 @@
 module Tests.HUnit.EVM(tests) where
 
-import Data.Word
-import Data.Bits
-import Data.LargeWord
-import qualified Data.ByteString as B
-import Test.Framework
-import Test.Framework.Providers.HUnit
-import Test.HUnit
-import Data.ByteString.Builder
-import Data.Monoid
+import           Data.Bits
+import qualified Data.ByteString                   as B
+import           Data.ByteString.Builder
+import           Data.LargeWord
+import           Data.Monoid
+import           Data.Word
+import           Test.Tasty
+import           Test.Tasty.HUnit
 
-import Ethereum.Common
-import Ethereum.Encoding.RLP
-import Ethereum.Storage.Context
-import Ethereum.State.Address
-import Ethereum.State.Account hiding (stateRoot)
-import Ethereum.State.Block
-import Ethereum.EVM.MachineState
-import Ethereum.EVM.ExecutionEnvironment
-import Ethereum.EVM.InstructionSet as E
-import Ethereum.EVM.VM
-import Ethereum.SimpleTypes
-import Ethereum.Lang.Ops as L
+import           Ethereum.Common
+import           Ethereum.Encoding.RLP
+import           Ethereum.EVM.ExecutionEnvironment
+import           Ethereum.EVM.InstructionSet       as E
+import           Ethereum.EVM.MachineState
+import           Ethereum.EVM.VM
+import           Ethereum.Lang.Ops                 as L
+import           Ethereum.SimpleTypes
+import           Ethereum.State.Account            hiding (stateRoot)
+import           Ethereum.State.Address
+import           Ethereum.State.Block
+import           Ethereum.Storage.Context
 
 -- Stores the top of the stack at memory zero.
 basicMstore :: Builder  -> Builder
-basicMstore xs = mstore (p1 0) xs
+basicMstore = mstore (p1 0)
 
 -- Returns the top element of the stack.
 basicReturn :: Builder  -> Builder
-basicReturn xs = (basicMstore xs) <> returnOp (p1 0) (p1 32)
+basicReturn xs = basicMstore xs <> returnOp (p1 0) (p1 32)
 
 ownerAddr ::  Address
 ownerAddr = A 0xAAAA
@@ -101,30 +100,30 @@ runUntilDone c ms ee = case runState execStep (c, ms, ee) of
         (Left t, _) -> t
         (Right _, (c', ms', ee')) -> runUntilDone c' ms' ee'
 
-returnTest :: String -> Builder -> Word256 -> Test.Framework.Test
+returnTest :: String -> Builder -> Word256 -> TestTree
 returnTest name codes v = testCase name (expect @=? result)
         where expect = NormalHalt (toBytes v)
-              result = simpleRun $ basicReturn $ codes
+              result = simpleRun $ basicReturn codes
 
-opTest :: Instruction -> Word256 -> Test.Framework.Test
+opTest :: Instruction -> Word256 -> TestTree
 opTest o v = testCase name (expect @=? result)
         where name = show o
               expect = NormalHalt (toBytes v)
               result = simpleRun ( basicReturn $ op o )
 
-unOpTest ::  Instruction -> Word256 -> Word256 -> Test.Framework.Test
+unOpTest ::  Instruction -> Word256 -> Word256 -> TestTree
 unOpTest o a v = testCase name (expect @=? result)
         where name = show o ++ " " ++ show a
               expect = NormalHalt (toBytes v)
               result = simpleRun ( basicReturn $ unOp o (p32 a) )
 
-binOpTest ::  Instruction -> Word256 -> Word256 -> Word256 -> Test.Framework.Test
+binOpTest ::  Instruction -> Word256 -> Word256 -> Word256 -> TestTree
 binOpTest o a1 a2 v = testCase name (expect @=? result)
         where name = show a1 ++ " " ++ show o ++ " " ++ show a2
               expect = NormalHalt (toBytes v)
               result = simpleRun ( basicReturn $ binOp o (p32 a1) (p32 a2) )
 
-sha3Test ::   String -> B.ByteString -> Word256 -> Test.Framework.Test
+sha3Test ::   String -> B.ByteString -> Word256 -> TestTree
 sha3Test name val e = testCase name (expect @=? result)
         where expect = NormalHalt (toBytes e)
               result = simpleRun $ basicReturn (putMem <> hashMem)
@@ -133,7 +132,7 @@ sha3Test name val e = testCase name (expect @=? result)
               putMem = memLiteral memAddr val
               hashMem = binOp SHA3 (p32 memAddr) (p32i memLen)
 
-memTest :: TestName -> (Word8 -> Builder) -> Word256 -> Test.Framework.Test
+memTest :: TestName -> (Word8 -> Builder) -> Word256 -> TestTree
 memTest name putMemFunc e = testCase name (expect @=? result)
         where expect = NormalHalt (toBytes e)
               result = simpleRun $ putMem <> binOp RETURN (p1 memAddr) (p1 32)
@@ -144,25 +143,34 @@ memTest name putMemFunc e = testCase name (expect @=? result)
 -- TODO: Genericize test cases.
 --       Should be able to output them to file or something.
 
-tests :: [Test.Framework.Test]
-tests = [
+tests :: TestTree
+tests = testGroup "EVM" [
         testGroup "Util" [
-                testCase "fromBytes 1" $ 1 @=? (fromBytes (B.pack [1])),
-                testCase "fromBytes 256" $ 256 @=? (fromBytes (B.pack [1, 0])),
-                testCase "toBytes 1" $ 1 @=? ((fromBytes.toBytes) 1),
-                testCase "toBytes 256" $ 256 @=? ((fromBytes.toBytes) 256),
+                testCase "fromBytes 1" $ 1 @=? fromBytes (B.pack [1]),
+                testCase "fromBytes 256" $ 256 @=? fromBytes (B.pack [1, 0]),
+                testCase "toBytes 1" $ 1 @=? (fromBytes.toBytes) 1,
+                testCase "toBytes 256" $ 256 @=? (fromBytes.toBytes) 256,
 
-                testCase "safeBrange in"   $ (B.pack [2,3]) @=? (safeBrange (1,2) (B.pack [1,2,3])),
-                testCase "safeBrange out"  $ (B.pack [0,0]) @=? (safeBrange (5,2) (B.pack [1,2,3])),
-                testCase "safeBrange edge" $ (B.pack [3,0]) @=? (safeBrange (2,2) (B.pack [1,2,3]))
+                testCase "safeBrange in"   $ B.pack [2,3] @=?
+                             safeBrange (1,2) (B.pack [1,2,3]),
+                testCase "safeBrange out"  $ B.pack [0,0] @=?
+                             safeBrange (5,2) (B.pack [1,2,3]),
+                testCase "safeBrange edge" $ B.pack [3,0] @=?
+                             safeBrange (2,2) (B.pack [1,2,3])
                 ],
 
-        testGroup "Halts and Exceptions" [ 
-                testCase "invalidInstruction" $ runCodeTest (asOp 0xfa) (InvalidInstruction),
-                testCase "stackUnderflow" $ runCodeTest (op ADD) (StackUnderflow),
-                testCase "stop" $ runCodeTest (op STOP) (NormalHalt emptyMemSlice),
-                testCase "outOfGas step" $ runCodeTest (p32 0 <> op JUMP) OutOfGasException,
-                testCase "outOfGas mem" $ runCodeTest (binOp MSTORE (p32 1000000000) (p32 1)) OutOfGasException
+        testGroup "Halts and Exceptions" [
+                testCase "invalidInstruction" $
+                         runCodeTest (asOp 0xfa) InvalidInstruction,
+                testCase "stackUnderflow" $
+                         runCodeTest (op ADD) StackUnderflow,
+                testCase "stop" $
+                         runCodeTest (op STOP) (NormalHalt emptyMemSlice),
+                testCase "outOfGas step" $
+                         runCodeTest (p32 0 <> op JUMP) OutOfGasException,
+                testCase "outOfGas mem" $
+                         runCodeTest (binOp MSTORE (p32 1000000000) (p32 1))
+                                     OutOfGasException
                 ],
         testGroup "Unary Operations" [
                 unOpTest NEG    5 (twosComp 5),
@@ -238,7 +246,7 @@ tests = [
                 opTest CODESIZE 9,  -- FIXME: brittle.
                 memTest (show CODECOPY)  -- FIXME: also brittle.
                         (\memAddr -> triOp CODECOPY (p32i memAddr) (p1 0) (p1 1))
-                        (fromBytes $ B.pack $ (toOpcode PUSH1) : (replicate 31 0)),
+                        (fromBytes $ B.pack $ toOpcode PUSH1 : replicate 31 0),
                 opTest GASPRICE (fromEther gasPriceValue)
                 ],
         testGroup "block" [
@@ -250,10 +258,10 @@ tests = [
                 opTest GASLIMIT (fromIntegral $ gasLimit testBlockHeader)
                 ],
         testGroup "stack" [
-                returnTest (show POP)  ((p32 400) <> (p32 300) <> (op POP)) 400,
-                returnTest (show SWAP) ((p32 400) <> (p32 300) <> (op SWAP) <> (op POP)) 300,
+                returnTest (show POP)  (p32 400 <> p32 300 <> op POP) 400,
+                returnTest (show SWAP) (p32 400 <> p32 300 <> op SWAP <> op POP) 300,
                 returnTest (show MLOAD)
-                           (memLiteral 200 (toBytes 1234) <> (unOp MLOAD (p32 200)))
+                           (memLiteral 200 (toBytes 1234) <> unOp MLOAD (p32 200))
                            1234,
                 memTest (show MSTORE)
                         (\memAddr -> binOp MSTORE (p1 memAddr) (p32 123))
@@ -267,7 +275,7 @@ tests = [
                 returnTest "JUMPI 0" ((binOp JUMPI (p1 6) (p1 0)) <> (op STOP) <> (p1 10)) 10,
                 returnTest "JUMPI 1" ((binOp JUMPI (p32 0xDEAD) (p1 1)) <> (p1 10)) 10,
                 returnTest "PC" ((unOp JUMP (p1 4)) <> (op STOP) <> (op PC)) 4,
-                returnTest "MSIZE 0" (msize) 0,
+                returnTest "MSIZE 0" msize 0,
                 returnTest "MSIZE 32" (mstore8 (p1 32) (p1 10) <> msize) 2,
                 returnTest "MSIZE 1023" (mstore8 (p32 1023) (p1 10) <> msize) 32,
                 returnTest "MSIZE 1024" (mstore8 (p32 1024) (p1 10) <> msize) 33

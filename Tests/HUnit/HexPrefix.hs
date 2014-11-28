@@ -3,33 +3,34 @@ module Tests.HUnit.HexPrefix(tests) where
 import           Data.Serialize
 import           Data.Word.Odd
 import           Ethereum.Encoding.HexPrefix
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.HUnit
+import           Test.Tasty
+import           Test.Tasty.HUnit
 
-roundTripTest :: [Word4] -> Bool -> Test.Framework.Test
-roundTripTest ns b = testCase (show (ns,b)) $ ns @=? d (e ns b)
-        where e a1 a2 = runPut $ putHexPrefixBytes a1 a2
-              d = (runGet $ getHexPrefixBytes b)
+hexRoundTripTest :: [Word4] -> Bool -> TestTree
+hexRoundTripTest ns b = testCase (show (ns, b)) $
+        do let enc = runPut $ putHexPrefixBytes ns b
+           case runGet (getHexPrefixBytes b) enc of
+                   Left err -> assertFailure err
+                   Right ns' -> ns @=? ns'
 
 -- TODO: These should be augmented with quickcheck tests.
-tests :: [Test.Framework.Test]
-tests = [
+tests :: TestTree
+tests = testGroup "HexPrefix" [
         testGroup "RoundTrip True" [
-                roundTripTest [0..15] True,
-                roundTripTest (reverse [0..15]) True,
-                roundTripTest [1..15] True,
-                roundTripTest (reverse [1..15]) True
+                hexRoundTripTest [0..15] True,
+                hexRoundTripTest (reverse [0..15]) True,
+                hexRoundTripTest [1..15] True,
+                hexRoundTripTest (reverse [1..15]) True
         ],
         testGroup "RoundTrip False" [
-                roundTripTest [0..15] False,
-                roundTripTest (reverse [0..15]) False,
-                roundTripTest [1..15] False,
-                roundTripTest (reverse [1..15]) False
+                hexRoundTripTest [0..15] False,
+                hexRoundTripTest (reverse [0..15]) False,
+                hexRoundTripTest [1..15] False,
+                hexRoundTripTest (reverse [1..15]) False
         ],
         testGroup "RoundTrip Edges" [
-                roundTripTest [] False,
-                roundTripTest [0] False,
-                roundTripTest [15] False
+                hexRoundTripTest [] False,
+                hexRoundTripTest [0] False,
+                hexRoundTripTest [15] False
         ]
         ]

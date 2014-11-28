@@ -1,31 +1,20 @@
 module Tests.HUnit.Block(tests) where
 
-import           Data.ByteString                as B
-import           Data.ByteString.Lazy           as L
-import           Data.Serialize
+import           Data.ByteString            as B
 import           Ethereum.Crypto
 import           Ethereum.State.Address
 import           Ethereum.State.Block
 import           Ethereum.State.Transaction
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.HUnit
+import           Test.Tasty
+import           Tests.Helpers
 
-roundTripTest :: (Show a, Eq a) => (a -> Put) -> Get a -> a -> Test.Framework.Test
-roundTripTest p g x = testCase (show x) $
-        do let enc = runPut $ p x
-           case runGetOrFail g enc of
-                   Left (_, _, err) -> assertFailure err
-                   Right (rest, _, _) | not (L.null rest) -> assertFailure "Some bytes remain"
-                   Right (_, _, v) -> x @=? v
-
-roundTripBlockHeader :: BlockHeader -> Test.Framework.Test
+roundTripBlockHeader :: BlockHeader -> TestTree
 roundTripBlockHeader = roundTripTest putBlockHeader getBlockHeader
 
-roundTripTransactionReceipt :: TransactionReceipt -> Test.Framework.Test
+roundTripTransactionReceipt :: TransactionReceipt -> TestTree
 roundTripTransactionReceipt = roundTripTest putTransactionReceipt getTransactionReceipt
 
-roundTripBlock :: Block -> Test.Framework.Test
+roundTripBlock :: Block -> TestTree
 roundTripBlock = roundTripTest putBlock getBlock
 
 pr1 :: PrivateAccount
@@ -43,13 +32,11 @@ block1 :: Block
 block1 = Block bh [transactionReceipt1, transactionReceipt2] []
         where bh = BlockHeader 1234 4321 (A 1234) 0 0 (2 ^ (22 :: Integer)) 1401778307 1 2 1000 150 B.empty 111
 
-tests ::  [Test.Framework.Test]
-tests = [
-          testGroup "serializations" serializeTests
-          ]
+tests ::  TestTree
+tests = testGroup "Block" [serializeTests]
 
-serializeTests ::  [Test.Framework.Test]
-serializeTests =
+serializeTests :: TestTree
+serializeTests = testGroup "Serialization"
         [  testGroup "BlockHeader" [
         roundTripBlockHeader genesisBlockHeader
         ], testGroup "TransactionReceipt" [

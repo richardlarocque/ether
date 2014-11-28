@@ -1,39 +1,32 @@
 module Tests.HUnit.Transaction(tests) where
 
-import qualified Data.ByteString                as B
-import qualified Data.ByteString.Lazy           as L
+import qualified Data.ByteString            as B
 import           Data.Serialize
 import           Ethereum.Crypto
 import           Ethereum.State.Account
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
-import           Ethereum.Storage.Trie          (zeroRef)
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.HUnit
+import           Ethereum.Storage.Trie      (zeroRef)
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import           Tests.Helpers
 
-roundTripTest :: (Show a, Eq a) => (a -> Put) -> (Get a) -> a -> Test.Framework.Test
-roundTripTest p g x = testCase (show x) $
-        do let enc = runPut $ p x
-           case runGetOrFail g enc of
-                   Left (_, _, err) -> assertFailure err
-                   Right (rest, _, _) | not (L.null rest) -> assertFailure "Some bytes remain"
-                   Right (_, _, v) -> x @=? v
+roundTripTransaction :: Transaction -> TestTree
+roundTripTransaction = roundTripTest putTransaction getTransaction
 
-roundTripTransaction :: Transaction -> Test.Framework.Test
-roundTripTransaction t = roundTripTest putTransaction getTransaction t
+roundTripSignature :: TSignature -> TestTree
+roundTripSignature = roundTripTest putSignature getSignature
 
-roundTripSignature :: TSignature -> Test.Framework.Test
-roundTripSignature = roundTripTest (putSignature) (getSignature)
+roundTripContractCreation :: ContractCreation -> TestTree
+roundTripContractCreation =
+    roundTripTest putContractCreation getContractCreation
 
-roundTripContractCreation :: ContractCreation -> Test.Framework.Test
-roundTripContractCreation = roundTripTest (putContractCreation) (getContractCreation)
+roundTripMessageCall :: MessageCall -> TestTree
+roundTripMessageCall = roundTripTest putMessageCall getMessageCall
 
-roundTripMessageCall :: MessageCall -> Test.Framework.Test
-roundTripMessageCall = roundTripTest (putMessageCall) (getMessageCall)
-
-cc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> Transaction
-cc pr n v gv gl bs = initContractCreation pr n v gv gl bs
+cc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString
+   -> Transaction
+cc = initContractCreation
 
 acc1234 :: PrivateAccount
 acc1234 = makePrivateAccount 1234
@@ -53,37 +46,37 @@ accWithBalance b = Account 10 b zeroRef NullCodeHash
 ccWithExpenses :: Integer -> Integer -> Integer -> Transaction
 ccWithExpenses v gp gl = cc acc1234 10 v gp gl (B.pack [0..9])
 
-mc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> Transaction
-mc pr n v gv gl to dat = initMessageCall pr n v gv gl to dat
+mc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address
+   -> B.ByteString -> Transaction
+mc = initMessageCall
 
-validGasCheck :: String -> Transaction -> Bool -> Test.Framework.Test
+validGasCheck :: String -> Transaction -> Bool -> TestTree
 validGasCheck s t e = testCase s $ e @=? isGasValid t
 
-nonceCheck :: String -> Transaction -> Account -> Bool -> Test.Framework.Test
+nonceCheck :: String -> Transaction -> Account -> Bool -> TestTree
 nonceCheck s t a e = testCase s $ e @=? isNonceValid t a
 
-upFrontCostCheck :: String -> Transaction -> Integer -> Test.Framework.Test
+upFrontCostCheck :: String -> Transaction -> Integer -> TestTree
 upFrontCostCheck s t e = testCase s $ e @=? upFrontCost t
 
-balanceCheck :: String -> Transaction -> Account -> Bool -> Test.Framework.Test
+balanceCheck :: String -> Transaction -> Account -> Bool -> TestTree
 balanceCheck s t a e = testCase s $ e @=? isBalanceAvailable t a
 
-tests ::  [Test.Framework.Test]
-tests = [ testGroup "verifications" verifyTests,
-          testGroup "serializations" serializeTests
-          ]
+tests ::  TestTree
+tests = testGroup "Transaction" [ verifyTests, serializeTests ]
 
-verifyTests ::  [Test.Framework.Test]
-verifyTests = [ testGroup "InitialGasCheck" [
-        validGasCheck ("0")     (ccWithInitialGas 0)    False,
-        validGasCheck ("10")    (ccWithInitialGas 10)   False,
-        validGasCheck ("1000")  (ccWithInitialGas 1000) True
+verifyTests :: TestTree
+verifyTests = testGroup "Verify"
+      [ testGroup "InitialGasCheck" [
+        validGasCheck "0"     (ccWithInitialGas 0)    False,
+        validGasCheck "10"    (ccWithInitialGas 10)   False,
+        validGasCheck "1000"  (ccWithInitialGas 1000) True
         ],
         testGroup "NonceCheck" [
-        nonceCheck ("ne")      (ccWithNonce  5) (accWithNonce  7)  False,
-        nonceCheck ("smaller") (ccWithNonce 10) (accWithNonce  9)  False,
-        nonceCheck ("eq")      (ccWithNonce 10) (accWithNonce 10)  True,
-        nonceCheck ("greater") (ccWithNonce 10) (accWithNonce 11)  False
+        nonceCheck "ne"      (ccWithNonce  5) (accWithNonce  7)  False,
+        nonceCheck "smaller" (ccWithNonce 10) (accWithNonce  9)  False,
+        nonceCheck "eq"      (ccWithNonce 10) (accWithNonce 10)  True,
+        nonceCheck "greater" (ccWithNonce 10) (accWithNonce 11)  False
         ],
         testGroup "upFrontCost" [
         upFrontCostCheck "110" (ccWithExpenses 10 1 100) 110,
@@ -92,29 +85,36 @@ verifyTests = [ testGroup "InitialGasCheck" [
         upFrontCostCheck "301" (ccWithExpenses 99 2 101) 301
         ],
         testGroup "BalanceCheck" [
-        balanceCheck ("smaller") (ccWithExpenses 10 1 100) (accWithBalance 109) False,
-        balanceCheck ("eq")      (ccWithExpenses 10 1 100) (accWithBalance 110) True,
-        balanceCheck ("greater") (ccWithExpenses 10 1 100) (accWithBalance 111) True
+        balanceCheck "smaller"
+                         (ccWithExpenses 10 1 100) (accWithBalance 109) False,
+        balanceCheck "eq"
+                         (ccWithExpenses 10 1 100) (accWithBalance 110) True,
+        balanceCheck "greater"
+                         (ccWithExpenses 10 1 100) (accWithBalance 111) True
         ]
         ]
 
-serializeTests ::  [Test.Framework.Test]
-serializeTests =
+serializeTests ::  TestTree
+serializeTests = testGroup "Serialize"
         [  testGroup "ContractCreation" [
         roundTripContractCreation $ ContractCreation B.empty
         ], testGroup "MessageCall" [
         roundTripMessageCall $ MessageCall zeroAddress B.empty
         ], testGroup "Signatures" [
-        roundTripSignature $ (nonSig $ acc1234)
+        roundTripSignature $ nonSig acc1234
         ], testGroup "TransactionCC" [
-        roundTripTransaction $ cc acc1234 10 10000 1 10 (B.empty),
+        roundTripTransaction $ cc acc1234 10 10000 1 10 B.empty,
         roundTripTransaction $ cc acc1234 10 10000 1 10 (B.replicate 10 0),
         roundTripTransaction $ cc acc1234 10 10000 1 10 (B.replicate 10 0xff),
-        let v = 2^(255 :: Integer) in roundTripTransaction $ cc acc1234 v v v v (B.empty)
+        let v = 2^(255 :: Integer) in
+            roundTripTransaction $ cc acc1234 v v v v B.empty
         ], testGroup "TransactionMC" [
-        roundTripTransaction $ mc acc1234 10 10000 1 10 (A 10) (B.empty),
-        roundTripTransaction $ mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0),
-        roundTripTransaction $ mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0xff),
-        let v = 2^(255 :: Integer) in roundTripTransaction $ mc acc1234 v v v v (A 10) (B.empty)
+        roundTripTransaction $ mc acc1234 10 10000 1 10 (A 10) B.empty,
+        roundTripTransaction $
+            mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0),
+        roundTripTransaction $
+            mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0xff),
+        let v = 2^(255 :: Integer) in
+            roundTripTransaction $ mc acc1234 v v v v (A 10) B.empty
         ]
         ]
