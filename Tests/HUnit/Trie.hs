@@ -13,6 +13,10 @@ import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Tests.Helpers
 
+import           Data.Serialize
+import           Data.Serialize.Get
+import           Data.Serialize.Put
+
 item :: [Word8] -> B.ByteString
 item = B.pack
 

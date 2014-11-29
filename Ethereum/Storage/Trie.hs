@@ -82,8 +82,10 @@ instance Serialize Tree where
                         Just i -> putArray i
                         Nothing -> return ()
 
-        get = do len <- getSequenceHeader
-                 isolate (fromIntegral len) (getLeaf <|> getExtension <|> getBranch)
+        get = do len <- liftM fromIntegral getSequenceHeader
+                 isolate len getLeaf
+                  <|> isolate len getExtension
+                  <|> isolate len getBranch
 
 -----
 
