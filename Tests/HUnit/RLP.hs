@@ -22,7 +22,12 @@ failToReadRaw g bs = testCase (show bs) $ assert $ isLeft $ runGet g bs
 
 failToRead :: (Serialize a) => Get a -> [Word8] -> TestTree
 failToRead g bs = testCase (show bs) $
-                  assert $ isLeft $ runGet g (B.pack bs)
+                  case runGetState g (B.pack bs) 0 of
+                     Left _ -> return () -- Failed as expected.
+                     Right (_, r) | B.null r ->
+                                        assertFailure "Unexpected success"
+                     _ -> return () -- Some unparsed data; all is well.
+
 
 data Seq1 = Seq1 Word256 Word256 [Word8] Word256
         deriving (Show, Eq)

@@ -15,11 +15,11 @@ data BlockHeader = BlockHeader {
         stateRoot        :: Word256,
         transactionsTrie :: Word256,
         difficulty       :: Integer,
-        timestamp        :: Integer,
         number           :: Integer,
         minGasPrice      :: Integer,
         gasLimit         :: Integer,
         gasUsed          :: Integer,
+        timestamp        :: Integer,
         extraData        :: B.ByteString,
         blockNonce       :: Word256
 } deriving (Show, Eq)
@@ -46,13 +46,13 @@ genesisBlockHeader = BlockHeader {
         transactionsTrie = 0,
 
         difficulty = 2 ^ (22 :: Integer),
-        timestamp = 0,
         number = 0,
 
         minGasPrice = 0,
         gasLimit = 0,
         gasUsed = 0,
-        extraData = B.singleton 42,
+        timestamp = 0,
+        extraData = B.empty,
         blockNonce = 0
 }
 
@@ -64,12 +64,12 @@ putBlockHeader b = putSequence $
            putScalar256     $ stateRoot b
            putScalar256     $ transactionsTrie b
            putScalar        $ difficulty b
-           putScalar        $ timestamp b
            putScalar        $ number b
            putScalar        $ minGasPrice b
            putScalar        $ gasLimit b
            putScalar        $ gasUsed b
-           putSequenceBytes $ extraData b
+           putScalar        $ timestamp b
+           putArray         $ extraData b
            putScalar256     $ blockNonce b
 
 putBlockHeaderWithoutNonce :: BlockHeader -> Put
@@ -80,12 +80,12 @@ putBlockHeaderWithoutNonce b = putSequence $
            putScalar256     $ stateRoot b
            putScalar256     $ transactionsTrie b
            putScalar        $ difficulty b
-           putScalar        $ timestamp b
            putScalar        $ number b
            putScalar        $ minGasPrice b
            putScalar        $ gasLimit b
            putScalar        $ gasUsed b
-           putSequenceBytes $ extraData b
+           putScalar        $ timestamp b
+           putArray         $ extraData b
 
 getBlockHeader :: Get BlockHeader
 getBlockHeader = getSequence $
@@ -95,14 +95,14 @@ getBlockHeader = getSequence $
            sr   <- getScalar256
            tt   <- getScalar256
            d    <- getScalar
-           t    <- getScalar
            num  <- getScalar
            mgp  <- getScalar
            gl   <- getScalar
            gu   <- getScalar
-           ed   <- getSequenceBytes
+           t    <- getScalar
+           ed   <- getArray
            non  <- getScalar256
-           return $ BlockHeader ph uh cb sr tt d t num mgp gl gu ed non
+           return $ BlockHeader ph uh cb sr tt d num mgp gl gu t ed non
 
 putTransactionReceipt :: TransactionReceipt -> Put
 putTransactionReceipt (TransactionReceipt t s gu) = putSequence $

@@ -85,7 +85,9 @@ Test-suite ether_tests
       Tests.HUnit.Transaction,
       Tests.HUnit.Trie,
       Tests.HUnit.Integration,
-      Tests.Helpers
+      Tests.HUnit.Interop,
+      Tests.Helpers,
+      Tests.TestData
 
   build-depends:
       ether,

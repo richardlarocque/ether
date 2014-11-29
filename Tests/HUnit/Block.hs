@@ -30,7 +30,7 @@ transactionReceipt2 = TransactionReceipt t 0 50
 
 block1 :: Block
 block1 = Block bh [transactionReceipt1, transactionReceipt2] []
-        where bh = BlockHeader 1234 4321 (A 1234) 0 0 (2 ^ (22 :: Integer)) 1401778307 1 2 1000 150 B.empty 111
+        where bh = BlockHeader 1234 4321 (A 1234) 0 0 (2 ^ (22 :: Integer)) 1 2 1000 150 1401778307 B.empty 111
 
 tests ::  TestTree
 tests = testGroup "Block" [serializeTests]

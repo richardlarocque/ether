@@ -22,6 +22,7 @@ import           Ethereum.Common
 
 putArray ::  B.ByteString -> Put
 putArray bs = case bs of
+        _ | B.null bs -> putWord8 0
         _ | B.length bs == 1 && B.head bs < 128 -> putWord8 (B.head bs)
         _ | B.length bs < 56 ->
                 do putWord8 (fromIntegral $ 128 + B.length bs)
@@ -46,8 +47,16 @@ getArrayHeader = do
                 _ -> fail "Not paresable as array"
 
 getArray ::  Get B.ByteString
-getArray = do len <- getArrayHeader
-              getByteString (fromIntegral len)
+getArray =
+    do b <- getWord8
+       case b of
+         0            -> return B.empty
+         _ | b <  128 -> return $ B.singleton b
+         _ | b <= 183 -> getByteString (fromIntegral (b-128))
+         _ | b <= 192 ->
+               do ls <- getByteString (fromIntegral (b-183)) >>= unBE
+                  getByteString $ fromIntegral ls
+         _            -> fail "Invalid non-sequence header"
 
 putScalar ::  Integer -> Put
 putScalar = putArray . asBE
