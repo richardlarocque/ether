@@ -43,7 +43,7 @@ getArrayHeader = do
                 _  | b <= 192 ->
                         do skip 1
                            ls <- getByteString (fromIntegral b - 183)
-                           unBE ls
+                           decodeScalar ls
                 _ -> fail "Not paresable as array"
 
 getArray ::  Get B.ByteString
@@ -54,21 +54,23 @@ getArray =
          _ | b <  128 -> return $ B.singleton b
          _ | b <= 183 -> getByteString (fromIntegral (b-128))
          _ | b <= 192 ->
-               do ls <- getByteString (fromIntegral (b-183)) >>= unBE
+               do ls <- getByteString (fromIntegral (b-183)) >>= decodeScalar
                   getByteString $ fromIntegral ls
          _            -> fail "Invalid non-sequence header"
 
+-- Put and get integr values as scalars.
 putScalar ::  Integer -> Put
 putScalar = putArray . asBE
 
-putScalar256 :: Word256 -> Put
-putScalar256 = putScalar . fromIntegral
-
 getScalar ::  Get Integer
-getScalar = getArray >>= unBE
+getScalar = getArray >>= decodeScalar
 
-getScalar256 ::  Get Word256
-getScalar256 = liftM fromIntegral getScalar
+-- Put and get Word256 as 32-byte arrays.
+put256 :: Word256 -> Put
+put256 = putScalar . fromIntegral
+
+get256 ::  Get Word256
+get256 = liftM (fromIntegral . decode256be) getArray
 
 putSequenceHeader :: Integral a => a -> Put
 putSequenceHeader len =
@@ -108,7 +110,7 @@ getSequenceHeader =
            if b <= 247
               then return $ fromIntegral b - 192
               else do ls <- getByteString (fromIntegral b - 247)
-                      len <- unBE ls
+                      len <- decodeScalar ls
                       return $ fromIntegral len
 
 getSequenceBytes :: Get B.ByteString
@@ -116,3 +118,9 @@ getSequenceBytes = getSequence $ getBytes =<< remaining
 
 getWord8s :: Integral a => a -> Get [Word8]
 getWord8s x = replicateM (fromIntegral x) get
+
+decodeScalar :: Monad m => B.ByteString -> m Integer
+decodeScalar bs = case bs of
+        _ | B.length bs == 0 -> return 0
+        _ | B.head bs == 0 -> fail "Unexpected leading zero(es)"
+        _ -> return $ B.foldl' (\x y -> x * 256 + fromIntegral y) 0 bs

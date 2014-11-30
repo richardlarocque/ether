@@ -62,10 +62,10 @@ instance Ix Word4 where
 
 instance Serialize TreeRef where
         put (Serialized bs) = putSequenceBytes bs
-        put (TreeHash h) = putScalar256 h
+        put (TreeHash h) = put256 h
 
         get = getHash <|> getSerialized
-                where getHash = liftM TreeHash getScalar256
+                where getHash = liftM TreeHash get256
                       getSerialized = liftM Serialized getSequenceBytes
 
 instance Serialize Tree where

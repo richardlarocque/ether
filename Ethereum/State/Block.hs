@@ -56,44 +56,36 @@ genesisBlockHeader = BlockHeader {
         blockNonce = 0
 }
 
+putBlockHeader' :: BlockHeader -> Put
+putBlockHeader' b =
+        do put256     $ parentHash b
+           put256     $ unclesHash b
+           putAddress $ coinbase b
+           put256     $ stateRoot b
+           put256     $ transactionsTrie b
+           putScalar  $ difficulty b
+           putScalar  $ number b
+           putScalar  $ minGasPrice b
+           putScalar  $ gasLimit b
+           putScalar  $ gasUsed b
+           putScalar  $ timestamp b
+           putArray   $ extraData b
+
 putBlockHeader :: BlockHeader -> Put
 putBlockHeader b = putSequence $
-        do putScalar256     $ parentHash b
-           putScalar256     $ unclesHash b
-           putAddress       $ coinbase b
-           putScalar256     $ stateRoot b
-           putScalar256     $ transactionsTrie b
-           putScalar        $ difficulty b
-           putScalar        $ number b
-           putScalar        $ minGasPrice b
-           putScalar        $ gasLimit b
-           putScalar        $ gasUsed b
-           putScalar        $ timestamp b
-           putArray         $ extraData b
-           putScalar256     $ blockNonce b
+                   do putBlockHeader' b
+                      put256 $ blockNonce b
 
 putBlockHeaderWithoutNonce :: BlockHeader -> Put
-putBlockHeaderWithoutNonce b = putSequence $
-        do putScalar256     $ parentHash b
-           putScalar256     $ unclesHash b
-           putAddress       $ coinbase b
-           putScalar256     $ stateRoot b
-           putScalar256     $ transactionsTrie b
-           putScalar        $ difficulty b
-           putScalar        $ number b
-           putScalar        $ minGasPrice b
-           putScalar        $ gasLimit b
-           putScalar        $ gasUsed b
-           putScalar        $ timestamp b
-           putArray         $ extraData b
+putBlockHeaderWithoutNonce b = putSequence $ putBlockHeader' b
 
 getBlockHeader :: Get BlockHeader
 getBlockHeader = getSequence $
-        do ph   <- getScalar256
-           uh   <- getScalar256
+        do ph   <- get256
+           uh   <- get256
            cb   <- getAddress
-           sr   <- getScalar256
-           tt   <- getScalar256
+           sr   <- get256
+           tt   <- get256
            d    <- getScalar
            num  <- getScalar
            mgp  <- getScalar
@@ -101,19 +93,19 @@ getBlockHeader = getSequence $
            gu   <- getScalar
            t    <- getScalar
            ed   <- getArray
-           non  <- getScalar256
+           non  <- get256
            return $ BlockHeader ph uh cb sr tt d num mgp gl gu t ed non
 
 putTransactionReceipt :: TransactionReceipt -> Put
 putTransactionReceipt (TransactionReceipt t s gu) = putSequence $
         do putTransaction t
-           putScalar256 s
+           put256 s
            putScalar gu
 
 getTransactionReceipt :: Get TransactionReceipt
 getTransactionReceipt = getSequence $
         do t <- getTransaction
-           s <- getScalar256
+           s <- get256
            gu <- getScalar
            return $ TransactionReceipt t s gu
 

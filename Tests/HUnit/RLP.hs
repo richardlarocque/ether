@@ -34,10 +34,10 @@ data Seq1 = Seq1 Word256 Word256 [Word8] Word256
 
 instance Serialize Seq1 where
         put (Seq1 s1 s2 b3 s4) = putSequence $ do
-                putScalar256 s1
-                putScalar256 s2
+                put256 s1
+                put256 s2
                 putArray (B.pack b3)
-                putScalar256 s4
+                put256 s4
         get = getSequence $ do
                 s1 <- getScalar
                 s2 <- getScalar

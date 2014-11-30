@@ -36,10 +36,10 @@ emptyHash :: Word256
 emptyHash = hashBytes B.empty
 
 instance Serialize CodeHash where
-        put (CodeHash h) = putScalar256 h
-        put (NullCodeHash) = putScalar256 (hashBytes B.empty)
+        put (CodeHash h) = put256 h
+        put (NullCodeHash) = put256 (hashBytes B.empty)
 
-        get = do h <- getScalar256
+        get = do h <- get256
                  return $ if h == emptyHash
                           then NullCodeHash
                           else CodeHash h
