@@ -22,7 +22,6 @@ import           Ethereum.Common
 
 putArray ::  B.ByteString -> Put
 putArray bs = case bs of
-        _ | B.null bs -> putWord8 0
         _ | B.length bs == 1 && B.head bs < 128 -> putWord8 (B.head bs)
         _ | B.length bs < 56 ->
                 do putWord8 (fromIntegral $ 128 + B.length bs)
@@ -32,25 +31,10 @@ putArray bs = case bs of
                    putByteString (asBE $ B.length bs)
                    putByteString bs
 
-getArrayHeader ::  Get Integer
-getArrayHeader = do
-        b <- lookAhead getWord8
-        case b of
-                _  | b < 128   -> return 1
-                _  | b <= 183  ->
-                        do skip 1
-                           return $ fromIntegral b - 128
-                _  | b <= 192 ->
-                        do skip 1
-                           ls <- getByteString (fromIntegral b - 183)
-                           decodeScalar ls
-                _ -> fail "Not paresable as array"
-
 getArray ::  Get B.ByteString
 getArray =
     do b <- getWord8
        case b of
-         0            -> return B.empty
          _ | b <  128 -> return $ B.singleton b
          _ | b <= 183 -> getByteString (fromIntegral (b-128))
          _ | b <= 192 ->

@@ -27,6 +27,21 @@ data HPArray = HPArray [Word4] Bool
 putHexPrefix :: [Word4] -> Bool -> Put
 putHexPrefix ns f = putArray $ runPut (putHexPrefixBytes ns f)
 
+getArrayHeader ::  Get Integer
+getArrayHeader = do
+        b <- lookAhead getWord8
+        case b of
+                _  | b < 128   -> return 1
+                _  | b <= 183  ->
+                        do skip 1
+                           return $ fromIntegral b - 128
+                _  | b <= 192 ->
+                        do skip 1
+                           ls <- getByteString (fromIntegral b - 183)
+                           decodeScalar ls
+                _ -> fail "Not paresable as array"
+
+
 getHexPrefix :: Bool -> Get [Word4]
 getHexPrefix f = do
         len <- getArrayHeader
