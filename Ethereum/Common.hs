@@ -15,9 +15,23 @@ encode256be :: Word256 -> B.ByteString
 encode256be n = B.pack $ reverse $ take 32 $
                 map fromIntegral $ iterate (`shiftR` 8) n
 
+-- decode256be :: B.ByteString -> Word256
+-- decode256be bytes = foldl iter 0 (B.unpack bytes)
+--   where iter accum b = accum * 256 + fromIntegral b
+
 decode256be :: B.ByteString -> Word256
-decode256be bytes = foldl iter 0 (B.unpack bytes)
-  where iter accum b = accum * 256 + fromIntegral b
+decode256be bs =
+    case 32 - B.length bs of
+      badPadLen   | badPadLen < 0    -> error "Invalid input length"
+      padLen -> decode256be' $ B.replicate padLen 0 `B.append` bs
+
+decode256be' :: B.ByteString -> Word256
+decode256be' bytes | B.length bytes /= 32 = error "Invalid input length"
+decode256be' bytes =
+    let bs = (map fromIntegral $ B.unpack bytes) :: [Word256]
+        posBytes = zipWith shiftL bs [248,240..0] :: [Word256]
+        merged = foldl1 (.|.) posBytes
+    in merged
 
 decode160be :: B.ByteString -> Word160
 decode160be bytes = foldl iter 0 (B.unpack bytes)
