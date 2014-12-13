@@ -11,7 +11,7 @@ import           Tests.TestData             as D
 import           Ethereum.BlockVerification
 
 singleBlockTest :: String -> ((B.ByteString, Either String Block) -> Assertion) -> TestTree
-singleBlockTest name test = testGroup name $ map f (zip [1..] D.blocks)
+singleBlockTest name test = testGroup name $ map f (zip ([1..]::[Integer]) D.blocks)
     where f (n, b) = testCase ("Block " ++ show n) (test (b, runGet getBlock b))
 
 checkParse :: (B.ByteString, Either String Block) -> Assertion
