@@ -51,7 +51,7 @@ getScalar = getArray >>= decodeScalar
 
 -- Put and get Word256 as 32-byte arrays.
 put256 :: Word256 -> Put
-put256 x = putArray $ encode256be x
+put256 = putScalar . fromIntegral
 
 get256 ::  Get Word256
 get256 = liftM (fromIntegral . decode256be) getArray
