@@ -1,6 +1,8 @@
 module Ethereum.BlockVerification where
 
 import           Control.Monad
+import           Crypto.Hash              (Digest, SHA3_256, hash)
+import           Data.Byteable
 import qualified Data.ByteString          as B
 import           Data.LargeWord
 import           Data.Serialize
@@ -41,7 +43,7 @@ difficultyFromParent childTime p =
 -- Equation 26-27.
 gasLimitFromParent :: BlockHeader -> Integer
 gasLimitFromParent p = max 10000 calculated
-        where calculated = (1023 * (gasLimit p)) + (6 * (gasUsed p) `div` 5) `div` 1024
+        where calculated = (1023 * gasLimit p) + (6 * gasUsed p `div` 5) `div` 1024
 
 -- Equation 30.
 isBlockNonceValid :: BlockHeader -> Bool
@@ -52,7 +54,11 @@ isBlockNonceValid bh =
 
 proofOfWork :: BlockHeader -> Word256 -> Word256
 proofOfWork bh nonc =
-        hashBytes . encode256be $ hashPut $ do { putBlockHeaderWithoutNonce bh; put $ encode256be nonc }
+    let headerBytes = runPut $ putBlockHeaderWithoutNonce bh
+        innerHash   = toBytes (hash headerBytes :: Digest SHA3_256)
+        outerBytes  = innerHash `B.append` encode256be nonc
+        outerHash   = hashBytes outerBytes
+    in outerHash
 
 -- Equations 30-34.
 isHeaderValid :: BlockHeader -> BlockHeader -> Bool

@@ -2,7 +2,6 @@ module Tests.HUnit.Interop(tests) where
 
 import           Control.Monad
 import qualified Data.ByteString            as B
-import           Data.Either
 import           Data.Serialize
 import           Ethereum.State.Block
 import           Test.Tasty
