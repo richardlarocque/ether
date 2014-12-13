@@ -7,6 +7,7 @@ import qualified Data.ByteString          as B
 import           Data.LargeWord
 import           Data.Serialize
 import           Ethereum.Common
+import           Ethereum.Encoding.RLP
 import           Ethereum.Execution
 import           Ethereum.State.Block
 import           Ethereum.Storage.Context
@@ -14,7 +15,7 @@ import           Ethereum.Storage.Context
 -- Equation 17.
 isConsistent :: Context -> Block -> Bool
 isConsistent c b = checkUncles && checkReceipts && checkState
-        where checkUncles = (unclesHash . header) b == (hashPut . putUncles . uncles) b
+        where checkUncles = isUnclesHashValid b
               checkReceipts = (transactionsTrie . header) b == (rootHash . receiptsToTrie . receipts) b
               checkState = case doBlockTransactions c b of
                       Nothing -> False
@@ -22,7 +23,7 @@ isConsistent c b = checkUncles && checkReceipts && checkState
 
 receiptsToTrie :: [TransactionReceipt] -> Context
 receiptsToTrie rs =
-        let keys = map asBE ([0..] :: [Integer])
+        let keys = map (runPut . putScalar) ([0..] :: [Integer])
             values = map (runPut . putTransactionReceipt) rs
             pairs = zip keys values
             c0 = initContext
@@ -51,6 +52,18 @@ isBlockNonceValid bh =
         let p = proofOfWork bh (blockNonce bh)
             minValue = (2 ^ (256 :: Integer) `div` difficulty bh)
         in fromIntegral p <= minValue
+
+isUnclesHashValid :: Block -> Bool
+isUnclesHashValid b =
+    let actualHash = (hashPut . putUncles . uncles) b
+        headerHash = (unclesHash . header) b
+    in headerHash == actualHash
+
+isReceiptHashValid :: Block -> Bool
+isReceiptHashValid b =
+    let actualHash = (rootHash . receiptsToTrie . receipts) b
+        headerHash = (transactionsTrie . header) b
+    in headerHash == actualHash
 
 proofOfWork :: BlockHeader -> Word256 -> Word256
 proofOfWork bh nonc =

@@ -49,7 +49,7 @@ putScalar = putArray . asBE
 getScalar ::  Get Integer
 getScalar = getArray >>= decodeScalar
 
--- Put and get Word256 as 32-byte arrays.
+-- FIXME: THIS COMMENT IS WRONG... Put and get Word256 as 32-byte arrays.
 put256 :: Word256 -> Put
 put256 = putScalar . fromIntegral
 

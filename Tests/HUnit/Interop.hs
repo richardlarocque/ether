@@ -25,17 +25,16 @@ checkReserialize (orig, p) =
       Left _   -> assertFailure "bad parse"
       Right p' -> orig @=? runPut (putBlock p')
 
-singleBlockTest' :: String -> (Block -> Assertion) -> TestTree
+singleBlockTest' :: String -> (Block -> Bool) -> TestTree
 singleBlockTest' name test = singleBlockTest name test'
     where test' (_, Left _ ) = assertFailure "bad parse"
-          test' (_, Right b) = test b
-
-checkNonce :: Block -> Assertion
-checkNonce b = unless (isBlockNonceValid $ header b) (assertFailure "bad nonce")
+          test' (_, Right b) = unless (test b) (assertFailure "test failed")
 
 tests :: TestTree
 tests = testGroup "Interop" [
          singleBlockTest "Parse" checkParse,
          singleBlockTest "Re-Serialize" checkReserialize,
-         singleBlockTest' "Nonce" checkNonce
+         singleBlockTest' "Nonce" (isBlockNonceValid . header),
+         singleBlockTest' "Uncles" isUnclesHashValid,
+         singleBlockTest' "Receipts" isReceiptHashValid
         ]
