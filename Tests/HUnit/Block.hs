@@ -1,10 +1,10 @@
 module Tests.HUnit.Block(tests) where
 
-import           Data.ByteString            as B
+import           Data.ByteString        as B
+import           Ethereum.Builders
 import           Ethereum.Crypto
 import           Ethereum.State.Address
 import           Ethereum.State.Block
-import           Ethereum.State.Transaction
 import           Test.Tasty
 import           Tests.Helpers
 
@@ -17,8 +17,8 @@ roundTripTransactionReceipt = roundTripTest putTransactionReceipt getTransaction
 roundTripBlock :: Block -> TestTree
 roundTripBlock = roundTripTest putBlock getBlock
 
-pr1 :: PrivateAccount
-pr1 = makePrivateAccount 1234
+pr1 :: PrivateKey
+(Right pr1) = asPrivateKey 1234
 
 transactionReceipt1 :: TransactionReceipt
 transactionReceipt1 = TransactionReceipt t 0 100

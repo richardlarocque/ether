@@ -17,10 +17,7 @@ import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString        as B
 import           Data.Serialize
-import           Ethereum.Crypto
 import           Ethereum.Encoding.RLP
-import qualified Ethereum.FeeSchedule   as F
-import qualified Ethereum.State.Account as A
 import           Ethereum.State.Address
 
 data Transaction = T
@@ -29,7 +26,7 @@ data Transaction = T
         Integer -- gp
         Integer -- gl
         (Either MessageCall ContractCreation)
-        Integer -- v
+        Integer -- w
         Integer -- r
         Integer -- s
         deriving (Show, Eq)
@@ -41,7 +38,7 @@ data MessageCall = MessageCall Address B.ByteString
         deriving (Show, Eq)
 
 nonce :: Transaction -> Integer
-nonce (T n _ _ _ _ _) = n
+nonce (T n _ _ _ _ _ _ _) = n
 
 putContractCreation :: ContractCreation -> Put
 putContractCreation (ContractCreation ini) =
@@ -67,14 +64,14 @@ getMessageCall = do
         return $ MessageCall to dat
 
 putTransaction :: Transaction -> Put
-putTransaction t@(T _ _ _ _ _ v r s) = putSequence $
+putTransaction t@(T _ _ _ _ _ w r s) = putSequence $
         do putUnsignedTransaction t
-           putScalar v
+           putScalar w
            putScalar r
            putScalar s
 
 putUnsignedTransaction :: Transaction -> Put
-putUnsignedTransaction (T n v gp gl x v r s) = putSequence $
+putUnsignedTransaction (T n v gp gl x _ _ _) = putSequence $
         do putScalar n   -- T_n
            putScalar v   -- T_v
            putScalar gp  -- T_p
@@ -92,20 +89,19 @@ getTransaction =
                          gp <- getScalar
                          gl <- getScalar
                          cc <- getContractCreation
-                         v <- getScalar
+                         w <- getScalar
                          r <- getScalar
                          s <- getScalar
-                         return $ T n v gp gl (Right cc) v r s
+                         return $ T n v gp gl (Right cc) w r s
               getMC = do n <- getScalar
                          v <- getScalar
                          gp <- getScalar
                          gl <- getScalar
                          mc <- getMessageCall
-                         ts <- getSignature
-                         v <- getScalar
+                         w <- getScalar
                          r <- getScalar
                          s <- getScalar
-                         return $ T n v gp gl (Left mc) v r s
+                         return $ T n v gp gl (Left mc) w r s
 
 {-
 -- Known as 'e' in Appendix F
@@ -120,46 +116,4 @@ transactionHashCC c cc = hashPut $ putSequence $
            putContractCreation cc
 -}
 
-initContractCreation :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> Transaction
-initContractCreation pr nonc v gp gl ini = T nonc v gp gl (Right (ContractCreation ini)) 0 0 0
-
-
-initMessageCall :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> Transaction
-initMessageCall pr nonc v gp gl to dat = T nonc v gp gl (Left (MessageCall to dat)) 0 0 0
-
 ----
-
-isSignatureValid :: Transaction -> Bool
-isSignatureValid (T _ _ _ _ _ sig) = False -- FIXME VERY WRONG
-
-isGasValid :: Transaction -> Bool
-isGasValid t@(T _ _ _ gl _ _) = intrinsicGas t < gl
-
--- Equation (36)
-intrinsicGas :: Transaction -> Integer
-intrinsicGas (T _ _ _ _ (Left (MessageCall _ dat)) _) =
-        F.transaction + F.txdata * (fromIntegral $ B.length dat)
-intrinsicGas (T _ _ _ _ (Right (ContractCreation ini)) _) =
-        F.transaction + F.txdata * (fromIntegral $ B.length ini)
-
--- Equation (37)
-upFrontCost :: Transaction -> Integer
-upFrontCost (T _ v gp gl _ _) = gp * gl + v
-
-isBalanceAvailable :: Transaction -> A.Account -> Bool
-isBalanceAvailable t a = (upFrontCost t) <= (A.balance a)
-
-isNonceValid :: Transaction -> A.Account -> Bool
-isNonceValid t a = (nonce t) == (A.nonce a)
-
-sender :: Transaction -> Address
-sender (T _ _ _ _ _ v r s) = senderAddress ts
-
--- Section 6
-isTransactionValid :: Transaction -> A.Account -> Bool
-isTransactionValid t a = and [
-        -- TODO: Check sender ID = account address
-        isSignatureValid t,
-        isNonceValid t a,
-        isGasValid t,
-        isBalanceAvailable t a ]

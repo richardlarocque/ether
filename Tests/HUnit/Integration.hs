@@ -4,6 +4,7 @@ import           Control.Monad
 import qualified Data.ByteString            as B
 import           Data.Maybe
 import           Data.Monoid
+import           Ethereum.Builders
 import           Ethereum.Crypto
 import           Ethereum.Execution
 import           Ethereum.Lang.Ops          as L
@@ -16,8 +17,8 @@ import           Ethereum.Storage.Context
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
-priv1 :: PrivateAccount
-priv1 = makePrivateAccount 1234
+priv1 :: PrivateKey
+(Right priv1) = asPrivateKey 1234
 
 acc1 :: Account
 acc1 = Account 0 90000 nullStateRoot NullCodeHash
@@ -25,25 +26,26 @@ acc1 = Account 0 90000 nullStateRoot NullCodeHash
 initTestContext :: Context
 initTestContext =
         let c0 = initContext
-        in updateAccount c0 (addressFromPriv priv1, acc1)
+        in updateAccount c0 (privateToAddress priv1, acc1)
 
-makeCCWithCode :: Context -> PrivateAccount -> B.ByteString -> Transaction
+makeCCWithCode :: Context -> PrivateKey -> B.ByteString -> Transaction
 makeCCWithCode c pr cs =
-        let addr = addressFromPriv pr
+        let addr = privateToAddress pr
             acc = fromJust $ getAccount c addr
         in initContractCreation pr (A.nonce acc) 10 2 10000 cs
 
-makeMCWithData :: Context -> PrivateAccount -> Address -> B.ByteString -> Transaction
+makeMCWithData :: Context -> PrivateKey -> Address -> B.ByteString -> Transaction
 makeMCWithData c pr toAddr dat =
-        let senderAddr = addressFromPriv pr
+        let senderAddr = privateToAddress pr
             senderAcc = fromJust $ getAccount c senderAddr
         in initMessageCall pr (A.nonce senderAcc) 10 2 10000 toAddr dat
 
 getGeneratedAddress :: Context -> Transaction -> Address
 getGeneratedAddress c t =
-        case t of
-                (T n _ _ _ (Right _) _) -> generateValidAddress c (sender t) n
-                _ -> undefined
+    let (Just sender) = transactionSender t in
+    case t of
+            (T n _ _ _ (Right _) _ _ _) -> generateValidAddress c sender n
+            _ -> undefined
 
 buildCC :: Context -> B.ByteString -> IO (Address, Context)
 buildCC c bs =

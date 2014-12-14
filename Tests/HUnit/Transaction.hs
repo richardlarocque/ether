@@ -1,21 +1,22 @@
 module Tests.HUnit.Transaction(tests) where
 
-import qualified Data.ByteString            as B
+import           Crypto.Secp256k1                 as S
+import qualified Data.ByteString                  as B
 import           Data.Serialize
+import           Ethereum.Builders
+import           Ethereum.Common
 import           Ethereum.Crypto
 import           Ethereum.State.Account
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
-import           Ethereum.Storage.Trie      (zeroRef)
+import           Ethereum.Storage.Trie            (zeroRef)
+import           Ethereum.TransactionVerification
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Tests.Helpers
 
 roundTripTransaction :: Transaction -> TestTree
 roundTripTransaction = roundTripTest putTransaction getTransaction
-
-roundTripSignature :: TSignature -> TestTree
-roundTripSignature = roundTripTest putSignature getSignature
 
 roundTripContractCreation :: ContractCreation -> TestTree
 roundTripContractCreation =
@@ -24,12 +25,12 @@ roundTripContractCreation =
 roundTripMessageCall :: MessageCall -> TestTree
 roundTripMessageCall = roundTripTest putMessageCall getMessageCall
 
-cc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString
+cc :: PrivateKey -> Integer -> Integer -> Integer -> Integer -> B.ByteString
    -> Transaction
 cc = initContractCreation
 
-acc1234 :: PrivateAccount
-acc1234 = makePrivateAccount 1234
+acc1234 :: PrivateKey
+(Right acc1234) = asPrivateKey 1234
 
 ccWithInitialGas :: Integer -> Transaction
 ccWithInitialGas gl = cc acc1234 0 10 1 gl (B.pack [0..9])
@@ -46,7 +47,7 @@ accWithBalance b = Account 10 b zeroRef NullCodeHash
 ccWithExpenses :: Integer -> Integer -> Integer -> Transaction
 ccWithExpenses v gp gl = cc acc1234 10 v gp gl (B.pack [0..9])
 
-mc :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address
+mc :: PrivateKey -> Integer -> Integer -> Integer -> Integer -> Address
    -> B.ByteString -> Transaction
 mc = initMessageCall
 
@@ -100,8 +101,6 @@ serializeTests = testGroup "Serialize"
         roundTripContractCreation $ ContractCreation B.empty
         ], testGroup "MessageCall" [
         roundTripMessageCall $ MessageCall zeroAddress B.empty
-        ], testGroup "Signatures" [
-        roundTripSignature $ nonSig acc1234
         ], testGroup "TransactionCC" [
         roundTripTransaction $ cc acc1234 10 10000 1 10 B.empty,
         roundTripTransaction $ cc acc1234 10 10000 1 10 (B.replicate 10 0),

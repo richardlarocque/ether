@@ -1,35 +1,36 @@
 module Ethereum.Execution where
 
-import Control.Monad
-import Data.Maybe
-import Ethereum.Common
-import Ethereum.EVM.ExecutionEnvironment
-import Ethereum.EVM.MachineState
-import Ethereum.EVM.VM
-import Ethereum.Storage.Context
-import Ethereum.State.Block
-import Ethereum.State.Address
-import Ethereum.State.Account as A
-import Ethereum.State.Transaction as T
-
-import Data.ByteString as B
+import           Control.Monad
+import           Data.ByteString                   as B
+import           Data.Maybe
+import           Ethereum.Common
+import           Ethereum.Crypto
+import           Ethereum.EVM.ExecutionEnvironment
+import           Ethereum.EVM.MachineState
+import           Ethereum.EVM.VM
+import           Ethereum.State.Account            as A
+import           Ethereum.State.Address
+import           Ethereum.State.Block
+import           Ethereum.State.Transaction        as T
+import           Ethereum.Storage.Context
+import           Ethereum.TransactionVerification
 
 doTransaction ::  BlockHeader -> Context -> Transaction -> Maybe Context
 doTransaction bh c t =
            -- Equation 38
-        do let addr = (sender t)
+        do addr <- transactionSender t
            acc <- getAccount c addr
            unless (isTransactionValid t acc) Nothing
 
-           let (T n v gp gl tt _) = t
-           let g = (gl - intrinsicGas t)
+           let (T n v gp gl tt _ _ _) = t
+           let g = gl - intrinsicGas t
 
            -- Equation 42
            let (c_p, g') = case tt of
-                (Right (ContractCreation ini)) ->
+                Right (ContractCreation ini) ->
                         let c_0 = ccCheckpointState c t (addr, acc)
                         in runContractCreation bh c_0 addr n g gp v ini -- Eq 49
-                (Left (MessageCall toAddr dat)) ->
+                Left (MessageCall toAddr dat) ->
                         let c_1 = mcCheckpointState c addr toAddr v
                         in runMessageCall_ bh c_1  addr addr toAddr g gp v dat -- Eq 64
 

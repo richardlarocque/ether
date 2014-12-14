@@ -1,39 +1,63 @@
 module Ethereum.Crypto where
 
--- I have no idea what I'm doing here.  I am not a cryptographer.  The
--- libraries I'm using and random number generators they rely on probably
--- weren't written by cryptographers either.  Do not trust this.
-
-import           Control.Applicative
 import           Control.Monad
-import           Crypto.Hash
-import           Crypto.Random
-import           Crypto.Secp256k1       as S
+import           Crypto.Secp256k1           as S
 import           Data.Bits
-import           Data.Byteable
-import qualified Data.ByteString        as B
+import qualified Data.ByteString            as B
 import           Data.LargeWord
+import           Data.Maybe
 import           Data.Serialize
 import           Ethereum.Common
-import           Ethereum.Encoding.RLP
 import           Ethereum.State.Address
+import           Ethereum.State.Transaction
 
-data PrivateAccount = PrivateAccount S.SecretKey
+data PrivateKey = Priv S.SecretKey
 
 -- TODO: Don't use this helper ever.
 ignoreFailure :: Either a b -> b
 ignoreFailure (Right r) = r
 
-addressFromPriv :: PrivateAccount -> Address
-addressFromPriv (PrivateAccount a) =
-    A $ fromIntegral $ (mask .&.) $ hashPut $ put a
+asPrivateKey :: Word256 -> Either String PrivateKey
+asPrivateKey = liftM Priv . S.initSecretKey . encode256be
+
+privateToAddress :: PrivateKey -> Address
+privateToAddress (Priv priv) =
+    pubkeyToAddress $ fromJust $ S.createPublicKeyC priv
+
+pubkeyToAddress :: S.CompressedPublicKey -> Address
+pubkeyToAddress pub =
+    A $ fromIntegral $ (mask .&.) $ hashPut $ put pub
     where mask = (1 `shiftL` 20) - 1
+
+signature :: Transaction -> (S.CompactSignature, Int)
+signature (T _ _ _ _ _ w r s) =
+    let sigBytes = toNByteBigEndian 4 r `B.append` toNByteBigEndian 4 s
+        compactSig = case runGet get sigBytes of
+                       Left _ -> error "Parse failed"
+                       Right x -> x
+        rId = case w of
+                x | x >= 27 && x <= 30 -> x
+                x | x >= 0  && x <= 4  -> x + 27
+                _ -> error "Bad RecoveryID"
+    in (compactSig, fromInteger rId)
+
+transactionSender :: Transaction -> Maybe Address
+transactionSender t =
+    do let (cSig, rId) = signature t
+       let msg = runPut $ putUnsignedTransaction t
+       pub <- S.recoverPublicC msg cSig rId
+       return $ pubkeyToAddress pub
+
+-- Works because successful recovery implies valid signature.
+-- TODO: A better implementation should be possible...
+isSignatureValid :: Transaction -> Bool
+isSignatureValid = isJust . transactionSender
 
 -- makePrivateAccount :: Word160 -> PrivateAccount
 -- makePrivateAccount w = PrivateAccount (A w)
 
-hashBytesToBytes :: B.ByteString -> B.ByteString
-hashBytesToBytes bs = Data.Byteable.toBytes (hash bs :: Digest SHA3_256)
+-- hashBytesToBytes :: B.ByteString -> B.ByteString
+-- hashBytesToBytes bs = Data.Byteable.toBytes (hash bs :: Digest SHA3_256)
 
 -- privToPublic :: PrivateKey -> PublicKey
 -- privToPublic PrivateKey{private_curve=c, private_d=d} = toPublicKey $ KeyPair c (Point 1 2) d
@@ -60,16 +84,3 @@ hashBytesToBytes bs = Data.Byteable.toBytes (hash bs :: Digest SHA3_256)
 --senderAddress :: TSignature -> Address
 --senderAddress (TSignature pub _ _) = publicAsAddress pub
 --senderAddress (NonSig a) = a
-
-verifyTSig :: B.ByteString -> TSignature -> Bool
-verifyTSig _ (NonSig _) = True
-verifyTSig _ _ = False
-
-sig :: Transaction -> (Integer, Integer)
-sig (T _ _ _ _ _ v r s) = ((r `shiftL` 32) .&. s, v)
-
-transactionSender :: Transaction -> Maybe Address
-transactionSender t =
-    let (sig,recov) = vrs t
-        msg = putUnsignedTransaction t
-        S.recoverCompactC toSign sig recov

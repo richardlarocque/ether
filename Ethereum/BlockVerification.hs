@@ -1,16 +1,16 @@
 module Ethereum.BlockVerification where
 
 import           Control.Monad
-import           Crypto.Hash                (Digest, SHA3_256, hash)
+import           Crypto.Hash              (Digest, SHA3_256, hash)
 import           Data.Byteable
-import qualified Data.ByteString            as B
+import qualified Data.ByteString          as B
 import           Data.LargeWord
 import           Data.Serialize
 import           Ethereum.Common
+import           Ethereum.Crypto
 import           Ethereum.Encoding.RLP
 import           Ethereum.Execution
 import           Ethereum.State.Block
-import           Ethereum.State.Transaction
 import           Ethereum.Storage.Context
 
 -- Equation 17.

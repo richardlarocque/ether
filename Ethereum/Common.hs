@@ -11,31 +11,40 @@ import           Data.Serialize
 import           Data.Word
 import           Data.Word.Odd
 
-encode256be :: Word256 -> B.ByteString
-encode256be n = B.pack $ reverse $ take 32 $
-                map fromIntegral $ iterate (`shiftR` 8) n
+toNByteBigEndian :: (Integral a, Bits a) => Int -> a -> B.ByteString
+toNByteBigEndian n i = B.pack $ reverse $ take n $
+                       map fromIntegral $ iterate (`shiftR` 8) i
 
--- decode256be :: B.ByteString -> Word256
--- decode256be bytes = foldl iter 0 (B.unpack bytes)
---   where iter accum b = accum * 256 + fromIntegral b
+-- Translates a ByteString into a (possibly large) integral.
+-- Forgiving version: Accepts short ByteStrings.
+fromNByteBigEndian :: (Integral a, Bits a) => Int -> B.ByteString -> a
+fromNByteBigEndian n bs =
+    case n - B.length bs of
+      badPadLen | badPadLen < 0 -> error "Invalid input length"
+      padLen -> fromNByteBigEndian' n $ B.replicate padLen 0 `B.append` bs
 
-decode256be :: B.ByteString -> Word256
-decode256be bs =
-    case 32 - B.length bs of
-      badPadLen   | badPadLen < 0    -> error "Invalid input length"
-      padLen -> decode256be' $ B.replicate padLen 0 `B.append` bs
-
-decode256be' :: B.ByteString -> Word256
-decode256be' bytes | B.length bytes /= 32 = error "Invalid input length"
-decode256be' bytes =
-    let bs = (map fromIntegral $ B.unpack bytes) :: [Word256]
-        posBytes = zipWith shiftL bs [248,240..0] :: [Word256]
+-- Translates a ByteString into a (possibly large) integral.
+-- Strict version: Fails if input is not precisely the right length.
+fromNByteBigEndian' :: (Integral a, Bits a) => Int -> B.ByteString -> a
+fromNByteBigEndian' n bytes | B.length bytes /= n = error "Invalid input length"
+fromNByteBigEndian' n bytes =
+    let bs = (map fromIntegral $ B.unpack bytes)
+        shifts = map (8*) [n-1..0]
+        posBytes = zipWith shiftL bs shifts
         merged = foldl1 (.|.) posBytes
     in merged
 
+encode256be :: Word256 -> B.ByteString
+encode256be = toNByteBigEndian 32
+
+decode256be :: B.ByteString -> Word256
+decode256be = fromNByteBigEndian 32
+
+encode160be :: Word160 -> B.ByteString
+encode160be = toNByteBigEndian 20
+
 decode160be :: B.ByteString -> Word160
-decode160be bytes = foldl iter 0 (B.unpack bytes)
-  where iter accum b = accum * 256 + fromIntegral b
+decode160be = fromNByteBigEndian 20
 
 hashBytes :: B.ByteString -> Word256
 hashBytes bs = (decode256be . toBytes) (hash bs :: Digest SHA3_256)
