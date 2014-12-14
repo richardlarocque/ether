@@ -33,11 +33,11 @@ data CodeHash = CodeHash Word256
               deriving Show
 
 emptyHash :: Word256
-emptyHash = hashBytes B.empty
+emptyHash = hashAsWord B.empty
 
 instance Serialize CodeHash where
         put (CodeHash h) = put256 h
-        put (NullCodeHash) = put256 (hashBytes B.empty)
+        put (NullCodeHash) = put256 (hashAsWord B.empty)
 
         get = do h <- get256
                  return $ if h == emptyHash

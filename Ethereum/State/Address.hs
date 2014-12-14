@@ -41,6 +41,6 @@ zeroAddress = A 0
 -- | we account things differently so we don't need to decrement
 -- | the nonce by 1.
 generateAddress :: Address -> Integer -> Address
-generateAddress a n = fromHash $ hashBytes $
+generateAddress a n = fromHash $ hashAsWord $
                       runPut $ putSequence $
                       do { putAddress a; putScalar n }

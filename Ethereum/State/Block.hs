@@ -40,7 +40,7 @@ data Block = Block {
 genesisBlockHeader :: BlockHeader
 genesisBlockHeader = BlockHeader {
         parentHash = 0,
-        unclesHash = hashPut $ putSequenceBytes B.empty,
+        unclesHash = hashAsWord $ runPut $ putSequenceBytes B.empty,
         stateRoot = 0,
         coinbase = A 0,
         transactionsTrie = 0,

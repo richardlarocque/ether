@@ -11,6 +11,8 @@ import           Ethereum.Common
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
 
+import           Debug.Trace
+
 data PrivateKey = Priv S.SecretKey
 
 -- TODO: Don't use this helper ever.
@@ -26,14 +28,14 @@ privateToAddress (Priv priv) =
 
 pubkeyToAddress :: S.CompressedPublicKey -> Address
 pubkeyToAddress pub =
-    A $ fromIntegral $ (mask .&.) $ hashPut $ put pub
+    A $ fromIntegral $ (mask .&.) $ hashAsWord $ runPut $ put pub
     where mask = (1 `shiftL` 20) - 1
 
 signature :: Transaction -> (S.CompactSignature, Int)
 signature (T _ _ _ _ _ w r s) =
-    let sigBytes = toNByteBigEndian 4 r `B.append` toNByteBigEndian 4 s
+    let sigBytes = toNByteBigEndian 32 r `B.append` toNByteBigEndian 32 s
         compactSig = case runGet get sigBytes of
-                       Left _ -> error "Parse failed"
+                       Left _ -> traceShow (w,r,s) $ error "Parse failed"
                        Right x -> x
         rId = case w of
                 x | x >= 27 && x <= 30 -> x
@@ -44,8 +46,8 @@ signature (T _ _ _ _ _ w r s) =
 transactionSender :: Transaction -> Maybe Address
 transactionSender t =
     do let (cSig, rId) = signature t
-       let msg = runPut $ putUnsignedTransaction t
-       pub <- S.recoverPublicC msg cSig rId
+       let h = hashAsBytes $ runPut $ putUnsignedTransaction t
+       pub <- S.recoverPublicC h cSig rId
        return $ pubkeyToAddress pub
 
 -- Works because successful recovery implies valid signature.

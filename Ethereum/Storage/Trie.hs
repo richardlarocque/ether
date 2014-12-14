@@ -94,7 +94,7 @@ tref Empty = TreeHash 0
 tref t     = let serialized = encode t
                   in if B.length serialized < 32
                         then Serialized serialized
-                        else TreeHash $ hashBytes serialized
+                        else TreeHash $ hashAsWord serialized
 
 deref :: TreeRef -> Reader MapStorage Tree
 deref tr =

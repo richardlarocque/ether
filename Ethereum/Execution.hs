@@ -83,7 +83,7 @@ incUntilValid c a@(A x) =
 updateCodeBody :: Context -> Address -> Maybe B.ByteString -> Context
 updateCodeBody c addr body =
     fromMaybe c $ do body' <- body
-                     let h = hashBytes body'
+                     let h = hashAsWord body'
                      let c' = insertToStorage c (h, body')
                      modifyAccount c' addr (\a -> a{codeHash=CodeHash h})
 

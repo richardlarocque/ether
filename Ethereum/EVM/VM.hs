@@ -165,7 +165,7 @@ runOp BYTE    = stackBinOp (\a b -> fromIntegral $ byteIndex a b)
 runOp SHA3    = do a <- pop
                    len <- pop
                    bytes <- memLoad a len
-                   push (hashBytes $ memToByteString bytes)
+                   push (hashAsWord $ memToByteString bytes)
 
 -- 30s: Environment
 runOp ADDRESS         = getEE >>= push . fromAddress . address

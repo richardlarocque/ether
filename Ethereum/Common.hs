@@ -46,14 +46,11 @@ encode160be = toNByteBigEndian 20
 decode160be :: B.ByteString -> Word160
 decode160be = fromNByteBigEndian 20
 
-hashBytes :: B.ByteString -> Word256
-hashBytes bs = (decode256be . toBytes) (hash bs :: Digest SHA3_256)
+hashAsWord :: B.ByteString -> Word256
+hashAsWord = decode256be . hashAsBytes
 
-hashLazyBytes :: L.ByteString -> Word256
-hashLazyBytes = hashBytes . L.toStrict
-
-hashPut :: Put -> Word256
-hashPut = hashBytes . runPut
+hashAsBytes :: B.ByteString -> B.ByteString
+hashAsBytes bs = toBytes (hash bs :: Digest SHA3_256)
 
 lowNibble  :: Word8 -> Word4
 lowNibble x   = fromIntegral $ 0x0f .&. x

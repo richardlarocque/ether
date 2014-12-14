@@ -57,7 +57,7 @@ isBlockNonceValid bh =
 
 isUnclesHashValid :: Block -> Bool
 isUnclesHashValid b =
-    let actualHash = (hashPut . putUncles . uncles) b
+    let actualHash = hashAsWord $ runPut (putUncles (uncles b))
         headerHash = (unclesHash . header) b
     in headerHash == actualHash
 
@@ -72,7 +72,7 @@ proofOfWork bh nonc =
     let headerBytes = runPut $ putBlockHeaderWithoutNonce bh
         innerHash   = toBytes (hash headerBytes :: Digest SHA3_256)
         outerBytes  = innerHash `B.append` encode256be nonc
-        outerHash   = hashBytes outerBytes
+        outerHash   = hashAsWord outerBytes
     in outerHash
 
 -- Equations 30-34.
