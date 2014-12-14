@@ -1,22 +1,24 @@
 module Ethereum.BlockVerification where
 
 import           Control.Monad
-import           Crypto.Hash              (Digest, SHA3_256, hash)
+import           Crypto.Hash                (Digest, SHA3_256, hash)
 import           Data.Byteable
-import qualified Data.ByteString          as B
+import qualified Data.ByteString            as B
 import           Data.LargeWord
 import           Data.Serialize
 import           Ethereum.Common
 import           Ethereum.Encoding.RLP
 import           Ethereum.Execution
 import           Ethereum.State.Block
+import           Ethereum.State.Transaction
 import           Ethereum.Storage.Context
 
 -- Equation 17.
 isConsistent :: Context -> Block -> Bool
-isConsistent c b = checkUncles && checkReceipts && checkState
-        where checkUncles = isUnclesHashValid b
-              checkReceipts = (transactionsTrie . header) b == (rootHash . receiptsToTrie . receipts) b
+isConsistent c b = checkNonce && checkUncles && checkReceipts && checkState
+        where checkNonce = (isBlockNonceValid . header) b
+              checkUncles = isUnclesHashValid b
+              checkReceipts = isReceiptHashValid b
               checkState = case doBlockTransactions c b of
                       Nothing -> False
                       Just c' -> rootHash c' == (stateRoot . header) b
@@ -81,3 +83,8 @@ isHeaderValid b p = and [
         gasLimit b == gasLimitFromParent p,
         timestamp b > timestamp p,
         (B.length . extraData) b < 1024 ]
+
+areSignaturesValid :: Block -> Bool
+areSignaturesValid b =
+    let ts = map receiptTrans $ receipts b
+    in all isSignatureValid ts

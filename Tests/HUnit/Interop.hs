@@ -32,9 +32,10 @@ singleBlockTest' name test = singleBlockTest name test'
 
 tests :: TestTree
 tests = testGroup "Interop" [
-         singleBlockTest "Parse" checkParse,
-         singleBlockTest "Re-Serialize" checkReserialize,
-         singleBlockTest' "Nonce" (isBlockNonceValid . header),
-         singleBlockTest' "Uncles" isUnclesHashValid,
-         singleBlockTest' "Receipts" isReceiptHashValid
+              singleBlockTest "Parse" checkParse,
+              singleBlockTest "Re-Serialize" checkReserialize,
+              singleBlockTest' "Nonce" (isBlockNonceValid . header),
+              singleBlockTest' "Uncles" isUnclesHashValid,
+              singleBlockTest' "Receipts" isReceiptHashValid,
+              singleBlockTest' "TransactionSignatures" areSignaturesValid
         ]

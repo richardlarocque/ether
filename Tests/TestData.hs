@@ -1,4 +1,4 @@
-module Tests.TestData(blocks, transactionReceipts) where
+module Tests.TestData(blocks) where
 
 import qualified Data.ByteString as B
 

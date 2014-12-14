@@ -26,7 +26,8 @@ Library
                        cereal >= 0.4,
                        mtl >= 2.2 && < 2.3,
                        data-lens >= 2.10 && < 2.11,
-                       OddWord >= 1.0 && < 1.1
+                       OddWord >= 1.0 && < 1.1,
+                       secp256k1 >= 0.1
 
   ghc-options:
       -Wall

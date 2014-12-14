@@ -29,7 +29,9 @@ data Transaction = T
         Integer -- gp
         Integer -- gl
         (Either MessageCall ContractCreation)
-        TSignature
+        Integer -- v
+        Integer -- r
+        Integer -- s
         deriving (Show, Eq)
 
 data ContractCreation = ContractCreation B.ByteString
@@ -65,7 +67,14 @@ getMessageCall = do
         return $ MessageCall to dat
 
 putTransaction :: Transaction -> Put
-putTransaction (T n v gp gl x ts) = putSequence $
+putTransaction t@(T _ _ _ _ _ v r s) = putSequence $
+        do putUnsignedTransaction t
+           putScalar v
+           putScalar r
+           putScalar s
+
+putUnsignedTransaction :: Transaction -> Put
+putUnsignedTransaction (T n v gp gl x v r s) = putSequence $
         do putScalar n   -- T_n
            putScalar v   -- T_v
            putScalar gp  -- T_p
@@ -73,7 +82,6 @@ putTransaction (T n v gp gl x ts) = putSequence $
            case x of
                    Left mc -> putMessageCall mc
                    Right cc -> putContractCreation cc
-           putSignature ts
 
 getTransaction :: Get Transaction
 getTransaction =
@@ -84,15 +92,20 @@ getTransaction =
                          gp <- getScalar
                          gl <- getScalar
                          cc <- getContractCreation
-                         ts <- getSignature
-                         return $ T n v gp gl (Right cc) ts
+                         v <- getScalar
+                         r <- getScalar
+                         s <- getScalar
+                         return $ T n v gp gl (Right cc) v r s
               getMC = do n <- getScalar
                          v <- getScalar
                          gp <- getScalar
                          gl <- getScalar
                          mc <- getMessageCall
                          ts <- getSignature
-                         return $ T n v gp gl (Left mc) ts
+                         v <- getScalar
+                         r <- getScalar
+                         s <- getScalar
+                         return $ T n v gp gl (Left mc) v r s
 
 {-
 -- Known as 'e' in Appendix F
@@ -108,16 +121,16 @@ transactionHashCC c cc = hashPut $ putSequence $
 -}
 
 initContractCreation :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> B.ByteString -> Transaction
-initContractCreation pr nonc v gp gl ini = T nonc v gp gl (Right (ContractCreation ini)) (nonSig pr)
+initContractCreation pr nonc v gp gl ini = T nonc v gp gl (Right (ContractCreation ini)) 0 0 0
 
 
 initMessageCall :: PrivateAccount -> Integer -> Integer -> Integer -> Integer -> Address -> B.ByteString -> Transaction
-initMessageCall pr nonc v gp gl to dat = T nonc v gp gl (Left (MessageCall to dat)) (nonSig pr)
+initMessageCall pr nonc v gp gl to dat = T nonc v gp gl (Left (MessageCall to dat)) 0 0 0
 
 ----
 
 isSignatureValid :: Transaction -> Bool
-isSignatureValid (T _ _ _ _ _ sig) = verifyTSig B.empty sig
+isSignatureValid (T _ _ _ _ _ sig) = False -- FIXME VERY WRONG
 
 isGasValid :: Transaction -> Bool
 isGasValid t@(T _ _ _ gl _ _) = intrinsicGas t < gl
@@ -140,7 +153,7 @@ isNonceValid :: Transaction -> A.Account -> Bool
 isNonceValid t a = (nonce t) == (A.nonce a)
 
 sender :: Transaction -> Address
-sender (T _ _ _ _ _ ts) = senderAddress ts
+sender (T _ _ _ _ _ v r s) = senderAddress ts
 
 -- Section 6
 isTransactionValid :: Transaction -> A.Account -> Bool
