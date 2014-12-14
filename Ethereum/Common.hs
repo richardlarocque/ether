@@ -17,7 +17,7 @@ toNByteBigEndian n i = B.pack $ reverse $ take n $
 
 -- Translates a ByteString into a (possibly large) integral.
 -- Forgiving version: Accepts short ByteStrings.
-fromNByteBigEndian :: (Integral a, Bits a) => Int -> B.ByteString -> a
+fromNByteBigEndian :: (Show a, Integral a, Bits a) => Int -> B.ByteString -> a
 fromNByteBigEndian n bs =
     case n - B.length bs of
       badPadLen | badPadLen < 0 -> error "Invalid input length"
@@ -25,11 +25,11 @@ fromNByteBigEndian n bs =
 
 -- Translates a ByteString into a (possibly large) integral.
 -- Strict version: Fails if input is not precisely the right length.
-fromNByteBigEndian' :: (Integral a, Bits a) => Int -> B.ByteString -> a
+fromNByteBigEndian' :: (Show a, Integral a, Bits a) => Int -> B.ByteString -> a
 fromNByteBigEndian' n bytes | B.length bytes /= n = error "Invalid input length"
 fromNByteBigEndian' n bytes =
     let bs = (map fromIntegral $ B.unpack bytes)
-        shifts = map (8*) [n-1..0]
+        shifts = map (8*) [n-1, n-2 .. 0]
         posBytes = zipWith shiftL bs shifts
         merged = foldl1 (.|.) posBytes
     in merged

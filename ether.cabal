@@ -31,8 +31,7 @@ Library
 
   ghc-options:
       -Wall
-      -O2
-      -fprof-auto
+      -O0
       -rtsopts
 			
   exposed-modules:
@@ -82,8 +81,7 @@ Test-suite ether_tests
 
   ghc-options:
       -Wall
-      -O2
-      -fprof-auto
+      -O0
       -rtsopts
 
   other-modules:

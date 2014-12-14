@@ -1,5 +1,6 @@
 module Main where
 
+import           Crypto.Secp256k1
 import           Test.Tasty
 import qualified Tests.HUnit.Account     as Account
 import qualified Tests.HUnit.Block       as Block
@@ -25,4 +26,4 @@ tests = testGroup "HUnit" [
         ]
 
 main ::  IO ()
-main = defaultMain tests
+main = withSecp256k1Initialized $ defaultMain tests

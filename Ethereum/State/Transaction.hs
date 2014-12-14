@@ -55,7 +55,7 @@ getContractCreation :: Get ContractCreation
 getContractCreation = do
         to <- getAddress
         unless (to == zeroAddress) (fail "CC with non-zero to address")
-        getArray >>= return.ContractCreation
+        liftM ContractCreation getArray
 
 getMessageCall :: Get MessageCall
 getMessageCall = do
@@ -65,13 +65,16 @@ getMessageCall = do
 
 putTransaction :: Transaction -> Put
 putTransaction t@(T _ _ _ _ _ w r s) = putSequence $
-        do putUnsignedTransaction t
+        do putUnsignedTransaction' t
            putScalar w
            putScalar r
            putScalar s
 
 putUnsignedTransaction :: Transaction -> Put
-putUnsignedTransaction (T n v gp gl x _ _ _) = putSequence $
+putUnsignedTransaction = putSequence . putUnsignedTransaction'
+
+putUnsignedTransaction' :: Transaction -> Put
+putUnsignedTransaction' (T n v gp gl x _ _ _) =
         do putScalar n   -- T_n
            putScalar v   -- T_v
            putScalar gp  -- T_p
