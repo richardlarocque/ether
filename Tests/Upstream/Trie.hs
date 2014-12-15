@@ -11,7 +11,7 @@ import           Tests.Upstream.Common
 import           Text.JSON
 
 testPath :: String
-testPath = "TrieTests"
+testPath = "TrieTests/"
 
 testFiles :: [String]
 testFiles = [ "trietest.json" ]

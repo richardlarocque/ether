@@ -11,7 +11,7 @@ import           Test.Tasty.HUnit
 import           Text.JSON
 
 testDataRoot :: String
-testDataRoot = "eth_tests"
+testDataRoot = "eth_tests/"
 
 groupDataTests :: String -> [Either String TestTree] -> Either String TestTree
 groupDataTests label ts =
@@ -44,18 +44,12 @@ readJSONFile path =
 
 makeTestCases :: (JSValue -> Maybe Assertion) -> JSValue -> Maybe [TestTree]
 makeTestCases f x =
-    do arr <- asArray x
-       mapM (makeTestCase f) arr
-
-makeTestCase :: (JSValue -> Maybe Assertion) -> JSValue -> Maybe TestTree
-makeTestCase f x =
     do obj <- asObject x
-       let assoc = fromJSObject obj
-       when (length assoc /= 1) Nothing
-       let label = (fst . head) assoc
-       let testData = (snd . last) assoc
-       assertion <- f testData
-       return $ testCase label assertion
+       let list = fromJSObject obj
+       let labels = map fst list
+       let testData = map snd list
+       assertions <- mapM f testData
+       return $ zipWith testCase labels assertions
 
 --- Helpers
 
