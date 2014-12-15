@@ -17,8 +17,6 @@ import           Ethereum.Storage.Context
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
-import           Debug.Trace
-
 priv1 :: PrivateKey
 (Right priv1) = asPrivateKey 1234
 
@@ -77,13 +75,11 @@ returnProgram prog =
 
 runCreatedContract :: TestTree
 runCreatedContract = testCase "runCreatedContract" $
-        do let c = traceShow "c" initTestContext
-           let bh = traceShow "bh" genesisBlockHeader
+        do let c = initTestContext
+           let bh = genesisBlockHeader
 
-           print "W!"
-           (contractAddr, c') <- traceShow "buildCC" $ buildCC c (returnProgram incrementCounter)
-           print "X!"
-           assertEqual "initial" (traceShow "initial" 0) (accountLoad c' contractAddr 0)
+           (contractAddr, c') <- buildCC c (returnProgram incrementCounter)
+           assertEqual "initial" 0 (accountLoad c' contractAddr 0)
 
            let mc = makeMCWithData c' priv1 contractAddr (toBytes 10)
            let Just c'' = doTransaction bh c' mc

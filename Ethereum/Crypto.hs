@@ -11,8 +11,6 @@ import           Ethereum.Common
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
 
-import           Debug.Trace
-
 data PrivateKey = Priv S.SecretKey
 
 -- TODO: Don't use this helper ever.
@@ -35,7 +33,7 @@ signature :: Transaction -> (S.CompactSignature, Int)
 signature (T _ _ _ _ _ w r s) =
     let sigBytes = toNByteBigEndian 32 r `B.append` toNByteBigEndian 32 s
         compactSig = case runGet get sigBytes of
-                       Left _ -> traceShow (w,r,s) $ error "Parse failed"
+                       Left _ -> error "Parse failed"
                        Right x -> x
         rId = case w of
                 -- FIXME: This first case shouldn't be supported...
@@ -46,10 +44,10 @@ signature (T _ _ _ _ _ w r s) =
 
 transactionSender :: Transaction -> Maybe Address
 transactionSender t =
-    do let (cSig, rId) = traceShow "Getting Sender" $ signature t
+    do let (cSig, rId) = signature t
        let h = hashAsBytes $ runPut $ putUnsignedTransaction t
        pub <- S.recoverPublicC h cSig rId
-       return $ traceShow "Got Sender" $ pubkeyToAddress pub
+       return $ pubkeyToAddress pub
 
 -- Works because successful recovery implies valid signature.
 -- TODO: A better implementation should be possible...
