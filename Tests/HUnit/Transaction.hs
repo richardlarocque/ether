@@ -1,10 +1,7 @@
 module Tests.HUnit.Transaction(tests) where
 
-import           Crypto.Secp256k1                 as S
 import qualified Data.ByteString                  as B
-import           Data.Serialize
 import           Ethereum.Builders
-import           Ethereum.Common
 import           Ethereum.Crypto
 import           Ethereum.State.Account
 import           Ethereum.State.Address
@@ -31,6 +28,9 @@ cc = initContractCreation
 
 acc1234 :: PrivateKey
 (Right acc1234) = asPrivateKey 1234
+
+addr1234 :: Address
+addr1234 = privateToAddress acc1234
 
 ccWithInitialGas :: Integer -> Transaction
 ccWithInitialGas gl = cc acc1234 0 10 1 gl (B.pack [0..9])
@@ -63,6 +63,13 @@ upFrontCostCheck s t e = testCase s $ e @=? upFrontCost t
 balanceCheck :: String -> Transaction -> Account -> Bool -> TestTree
 balanceCheck s t a e = testCase s $ e @=? isBalanceAvailable t a
 
+senderCheck :: String -> Address -> Transaction -> TestTree
+senderCheck msg sender transaction =
+    testCase msg $
+      case transactionSender transaction of
+        Nothing -> assertFailure "Fetching sender failed"
+        Just sender' -> assertEqual "Sender matching" sender sender'
+
 tests ::  TestTree
 tests = testGroup "Transaction" [ verifyTests, serializeTests ]
 
@@ -92,8 +99,11 @@ verifyTests = testGroup "Verify"
                          (ccWithExpenses 10 1 100) (accWithBalance 110) True,
         balanceCheck "greater"
                          (ccWithExpenses 10 1 100) (accWithBalance 111) True
-        ]
-        ]
+        ],
+        testGroup "RecoverAddress" [
+          senderCheck "case 1" addr1234 (cc acc1234 10 10000 1 10 B.empty),
+          senderCheck "case 2" addr1234 (mc acc1234 10 10000 1 10 (A 10) B.empty)
+        ]]
 
 serializeTests ::  TestTree
 serializeTests = testGroup "Serialize"
