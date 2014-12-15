@@ -1,8 +1,11 @@
-module Tests.HUnit.Upstream.Common where
+module Tests.Upstream.Common where
 
 import           Control.Monad
+import qualified Data.ByteString       as B
+import qualified Data.ByteString.Char8 as BC8
 import           Data.Either
 import           Data.List
+import           Numeric
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Text.JSON
@@ -18,10 +21,10 @@ groupDataTests label ts =
     where formatErr errs =
               label ++ ":\n" ++ intercalate "," (map ("\t" ++) errs)
 
-fileAsTestGroup :: String -> [String]
+filesAsTestGroup :: String -> [String]
                     -> (JSValue -> Maybe Assertion)
                     -> IO (Either String TestTree)
-fileAsTestGroup name paths interp =
+filesAsTestGroup name paths interp =
     liftM (groupDataTests name) $ mapM (flip readTestsFromFile interp) paths
 
 readTestsFromFile :: String -> (JSValue -> Maybe Assertion)
@@ -54,6 +57,8 @@ makeTestCase f x =
        assertion <- f testData
        return $ testCase label assertion
 
+--- Helpers
+
 asArray :: JSValue -> Maybe [JSValue]
 asArray v = case v of
               JSArray arr -> Just arr
@@ -63,3 +68,26 @@ asObject :: JSValue -> Maybe (JSObject JSValue)
 asObject v = case v of
                JSObject obj -> Just obj
                _ -> Nothing
+
+--- Parsers
+
+parseSimpleType :: JSValue -> Maybe B.ByteString
+parseSimpleType obj =
+    case obj of
+      JSNull -> Just B.empty
+      JSString jsStr ->
+          let jsStr' = fromJSString jsStr in
+          case stripPrefix "0x" (fromJSString jsStr) of
+            Just hexStr -> parseHex hexStr
+            Nothing -> Just $ BC8.pack jsStr'
+      _ -> Nothing
+
+parseHex :: String -> Maybe B.ByteString
+parseHex hexStr =
+    liftM B.pack $ sequence $ readHexByte hexStr
+    where readHexByte (a:b:rest) =
+              case readHex [a,b] of
+                [(v,"")] -> Just v : readHexByte rest
+                _ -> [Nothing]
+          readHexByte [] = []
+          readHexByte _  = [Nothing]

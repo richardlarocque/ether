@@ -7,6 +7,10 @@ import qualified Tests.Upstream
 
 
 main ::  IO ()
-main = do
-
-  withSecp256k1Initialized $ defaultMain tests
+main = withSecp256k1Initialized $ do
+         let normalTests = Tests.HUnit.group
+         parsedResult <- Tests.Upstream.ioGroup
+         case parsedResult of
+           Left err -> print err
+           Right parsedTests ->
+               defaultMain $ testGroup "All" [normalTests, parsedTests]

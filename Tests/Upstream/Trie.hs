@@ -1,12 +1,17 @@
-module Tests.HUnit.Common where
+module Tests.Upstream.Trie where
 
+import           Control.Monad
+import qualified Data.ByteString          as B
+import           Data.LargeWord
+import           Ethereum.Common
+import           Ethereum.Storage.Context
 import           Test.Tasty
 import           Test.Tasty.HUnit
-
-import           Test.HUnit.Upstream.Common
+import           Tests.Upstream.Common
+import           Text.JSON
 
 testPath :: String
-testPath = [ "TrieTests" ]
+testPath = "TrieTests"
 
 testFiles :: [String]
 testFiles = [ "trietest.json" ]
@@ -15,49 +20,31 @@ testPaths :: [String]
 testPaths = map (\x -> testDataRoot ++ testPath ++ x) testFiles
 
 tests :: IO (Either String TestTree)
-tests = filesAsTestGroup "Trie" testPaths
+tests = filesAsTestGroup "Trie" testPaths toTrieTest
 
-toTrieTest :: JSObject -> Assertion
+toTrieTest :: JSValue -> Maybe Assertion
 toTrieTest obj =
-    case parseTrieTest of
-      Nothing -> assertFailure "Parse failure"
-      Just (pairs, root) -> runTrieTest root pairs
+    do (root, pairs) <- parseTrieTest obj
+       return $ makeTrieTest root pairs
 
-parseTrieTest :: JSObject -> Maybe ()
-parseTrieTest obj =
-    do let assoc = fromJSObject
-       inputObj <- lookup assoc "in"
+parseTrieTest :: JSValue -> Maybe (Word256, [(B.ByteString, B.ByteString)])
+parseTrieTest val =
+    do obj <- asObject val
+       let assoc = fromJSObject obj
+       inputObj <- lookup "in" assoc
        inputArray <- asArray inputObj
        inputPairs <- mapM parsePair inputArray
-       expectedRoot <- lookup assoc "root"
-       (inputPairs, expectedRoot)
+       rootObj <- lookup "root" assoc
+       expectedRoot <- liftM decode256be $ parseSimpleType rootObj
+       return (expectedRoot, inputPairs)
 
-runTrieTest :: [(B.ByteString, B.ByteString)]
-runTrieTest r ps = r @=? rootHash (foldl insertToTrie initContext ps)
+makeTrieTest :: Word256 -> [(B.ByteString, B.ByteString)] -> Assertion
+makeTrieTest r ps = r @=? rootHash (foldl insertToTrie initContext ps)
 
-parsePair obj :: JSObject -> Maybe (B.ByteString, B.ByteString)
+parsePair :: JSValue -> Maybe (B.ByteString, B.ByteString)
 parsePair obj =
     do pairObj <- asArray obj
        when (2 /= length pairObj) Nothing
        k <- parseSimpleType $ pairObj !! 0
        v <- parseSimpleType $ pairObj !! 1
-       return (pairObj !! 0, pairObj !! 1)
-
-parseSimpleType :: JSObject -> Maybe B.ByteString
-parseSimpleType obj =
-    case obj of
-      JSNull -> B.empty
-      JSString jsstr | "0x" isPrefixOf (fromJSString jsstr) -> asHex jsstr
-      JSString jsstr -> asString jsstr
-    where asHex s = readHex $ stripPrefix "0x" $ fromJSString s
-          asString s = B.pack $ fromJSString s
-
-parseHex :: JSString -> Maybe B.ByteString
-parseHex jsstr =
-    liftM B.pack $ readHex $ stripPrefix "0x" $ fromJSString s
-    where readHex (a:b:rest) =
-              case readHex [a,b] of
-                [(v,"")] -> Just $ v:(readHex rest)
-                _ -> Nothing
-          readHex [] -> []
-          readHex _ -> Nothing
+       return (k, v)
