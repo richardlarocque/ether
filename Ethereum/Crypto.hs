@@ -38,51 +38,33 @@ signature (T _ _ _ _ _ w r s) =
                        Left _ -> traceShow (w,r,s) $ error "Parse failed"
                        Right x -> x
         rId = case w of
-                x | x >= 27 && x <= 30 -> x
-                x | x >= 0  && x <= 4  -> x + 27
+                -- FIXME: This first case shouldn't be supported...
+                x | x >= 27 && x <= 30 -> x - 27
+                x | x >= 0  && x <= 4  -> x
                 _ -> error "Bad RecoveryID"
     in (compactSig, fromInteger rId)
 
 transactionSender :: Transaction -> Maybe Address
 transactionSender t =
-    do let (cSig, rId) = signature t
+    do let (cSig, rId) = traceShow "Getting Sender" $ signature t
        let h = hashAsBytes $ runPut $ putUnsignedTransaction t
        pub <- S.recoverPublicC h cSig rId
-       return $ pubkeyToAddress pub
+       return $ traceShow "Got Sender" $ pubkeyToAddress pub
 
 -- Works because successful recovery implies valid signature.
 -- TODO: A better implementation should be possible...
 isSignatureValid :: Transaction -> Bool
 isSignatureValid = isJust . transactionSender
 
--- makePrivateAccount :: Word160 -> PrivateAccount
--- makePrivateAccount w = PrivateAccount (A w)
+-- FIXME: THIS IS UNACCEPTABLE HACK!!!!!!
+badNonce :: S.Nonce
+(Right badNonce) = S.initNonce (B.replicate 32 0xab)
 
--- hashBytesToBytes :: B.ByteString -> B.ByteString
--- hashBytesToBytes bs = Data.Byteable.toBytes (hash bs :: Digest SHA3_256)
-
--- privToPublic :: PrivateKey -> PublicKey
--- privToPublic PrivateKey{private_curve=c, private_d=d} = toPublicKey $ KeyPair c (Point 1 2) d
-
--- publicToBytes :: PublicKey -> B.ByteString
--- publicToBytes PublicKey { public_q=(Point a b) } =
---         runPut $ do { put a; put b }
-
--- publicFromBytes :: B.ByteString -> PublicKey
--- publicFromBytes bs =
---         ignoreFailure $ runGet getPub $ bs
---         where getPub = do a <- get
---                           b <- get
---                           return $ PublicKey curve (Point a b)
-
--- publicAsAddress :: B.ByteString -> Address
--- publicAsAddress pu = A $ decode160be $ B.drop 44 $ pu
---
--- signTransaction :: CPRG g => g -> PrivateKey -> B.ByteString -> TSignature
--- signTransaction cprg pk bs =
---         let (s, _) = sign cprg pk hashBytesToBytes bs
---         in TSignature (publicToBytes $ privToPublic pk) (sign_r s) (sign_s s)
---
---senderAddress :: TSignature -> Address
---senderAddress (TSignature pub _ _) = publicAsAddress pub
---senderAddress (NonSig a) = a
+signTransaction :: PrivateKey -> Transaction -> Maybe (Integer, Integer, Integer)
+signTransaction (Priv pr) t =
+    do let h = hashAsBytes $ runPut $ putUnsignedTransaction t
+       (cSig, rId) <- S.signCompact h pr badNonce
+       let cSigBytes = runPut $ put cSig
+       let (rBytes, sBytes) = B.splitAt 32 cSigBytes
+       let (r, s) = (fromNByteBigEndian 32 rBytes, fromNByteBigEndian 32 sBytes)
+       return (fromIntegral rId, r, s)

@@ -17,6 +17,8 @@ import           Ethereum.Storage.Context
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
+import           Debug.Trace
+
 priv1 :: PrivateKey
 (Right priv1) = asPrivateKey 1234
 
@@ -45,7 +47,7 @@ getGeneratedAddress c t =
     let (Just sender) = transactionSender t in
     case t of
             (T n _ _ _ (Right _) _ _ _) -> generateValidAddress c sender n
-            _ -> undefined
+            _ -> error "Could not get sender"
 
 buildCC :: Context -> B.ByteString -> IO (Address, Context)
 buildCC c bs =
@@ -75,11 +77,13 @@ returnProgram prog =
 
 runCreatedContract :: TestTree
 runCreatedContract = testCase "runCreatedContract" $
-        do let c = initTestContext
-           let bh = genesisBlockHeader
+        do let c = traceShow "c" initTestContext
+           let bh = traceShow "bh" genesisBlockHeader
 
-           (contractAddr, c') <- buildCC c (returnProgram incrementCounter)
-           assertEqual "ininital" 0 (accountLoad c' contractAddr 0)
+           print "W!"
+           (contractAddr, c') <- traceShow "buildCC" $ buildCC c (returnProgram incrementCounter)
+           print "X!"
+           assertEqual "initial" (traceShow "initial" 0) (accountLoad c' contractAddr 0)
 
            let mc = makeMCWithData c' priv1 contractAddr (toBytes 10)
            let Just c'' = doTransaction bh c' mc

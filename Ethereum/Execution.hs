@@ -15,12 +15,14 @@ import           Ethereum.State.Transaction        as T
 import           Ethereum.Storage.Context
 import           Ethereum.TransactionVerification
 
+import           Debug.Trace
+
 doTransaction ::  BlockHeader -> Context -> Transaction -> Maybe Context
 doTransaction bh c t =
            -- Equation 38
-        do addr <- transactionSender t
-           acc <- getAccount c addr
-           unless (isTransactionValid t acc) Nothing
+        do addr <- traceShow "sender" $ transactionSender t
+           acc <- traceShow "acc" $ getAccount c addr
+           unless (traceShow "isValid" $ isTransactionValid t acc) Nothing
 
            let (T n v gp gl tt _ _ _) = t
            let g = gl - intrinsicGas t
@@ -29,10 +31,10 @@ doTransaction bh c t =
            let (c_p, g') = case tt of
                 Right (ContractCreation ini) ->
                         let c_0 = ccCheckpointState c t (addr, acc)
-                        in runContractCreation bh c_0 addr n g gp v ini -- Eq 49
+                        in traceShow "RunCC" $ runContractCreation bh c_0 addr n g gp v ini -- Eq 49
                 Left (MessageCall toAddr dat) ->
                         let c_1 = mcCheckpointState c addr toAddr v
-                        in runMessageCall_ bh c_1  addr addr toAddr g gp v dat -- Eq 64
+                        in traceShow "RunMC" $ runMessageCall_ bh c_1  addr addr toAddr g gp v dat -- Eq 64
 
            -- Equation 45, refund some gas to the sender.
            let c_p' = creditAccount c_p addr (g'*gl)
