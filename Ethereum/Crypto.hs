@@ -11,8 +11,6 @@ import           Ethereum.Common
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
 
-import           Debug.Trace
-
 data PrivateKey = Priv S.SecretKey
 
 -- TODO: Don't use this helper ever.
@@ -42,7 +40,7 @@ signature (T _ _ _ _ _ w r s) =
                 x | x >= 27 && x <= 30 -> x - 27
                 x | x >= 0  && x <= 4  -> x
                 _ -> error "Bad RecoveryID"
-    in traceShow (compactSig, rId) (compactSig, fromInteger rId)
+    in (compactSig, fromInteger rId)
 
 transactionSender :: Transaction -> Maybe Address
 transactionSender t =

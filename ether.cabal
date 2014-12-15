@@ -33,8 +33,9 @@ Library
       -Wall
       -O0
       -rtsopts
-			
+
   exposed-modules:
+      Ethereum.Builders
       Ethereum.Common
       Ethereum.EVM.ExecutionEnvironment
       Ethereum.EVM.InstructionSet
@@ -53,6 +54,7 @@ Library
       Ethereum.Storage.Context
       Ethereum.Storage.HashMap
       Ethereum.Storage.Trie
+      Ethereum.TransactionVerification
       Ethereum.Lang.Ops
 
   default-language:    Haskell2010
@@ -85,6 +87,7 @@ Test-suite ether_tests
       -rtsopts
 
   other-modules:
+      Tests.HUnit
       Tests.HUnit.Account,
       Tests.HUnit.Block,
       Tests.HUnit.EVM,
@@ -94,6 +97,9 @@ Test-suite ether_tests
       Tests.HUnit.Trie,
       Tests.HUnit.Integration,
       Tests.HUnit.Interop,
+      Tests.Upstream
+      Tests.Upstream.Common,
+      Tests.Upstream.Trie,
       Tests.Helpers,
       Tests.TestData
 
@@ -101,6 +107,7 @@ Test-suite ether_tests
       ether,
       tasty >= 0.7,
       tasty-hunit >= 0.9,
-      tasty-quickcheck >= 0.8
+      tasty-quickcheck >= 0.8,
+      json >= 0.7
 
   default-language:    Haskell2010
