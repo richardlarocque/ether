@@ -56,7 +56,7 @@ buildCC c bs =
            let newAddr = getGeneratedAddress c cc1
 
            let result = doTransaction bh c cc1
-           assertBool "verify transaction" (isJust $ result)
+           assertBool "verify transaction" (isJust result)
 
            let Just c' = result
            assertBool "verify new contract" (isJust $ getAccount c' newAddr)
