@@ -14,18 +14,21 @@ testPath :: String
 testPath = "TrieTests/"
 
 testFiles :: [String]
-testFiles = [ "trietest.json" ]
+testFiles = [ "trietest.json", "trieanyorder.json" ]
+
+mkPath :: String -> String
+mkPath = (++) (testDataRoot ++ testPath)
 
 testPaths :: [String]
 testPaths = map (\x -> testDataRoot ++ testPath ++ x) testFiles
 
 tests :: IO (Either String TestTree)
-tests = filesAsTestGroup "Trie" testPaths toTrieTest
-
-toTrieTest :: JSValue -> Maybe Assertion
-toTrieTest obj =
-    do (root, pairs) <- parseTrieTest obj
-       return $ makeTrieTest root pairs
+tests = liftM (groupDataTests "Trie") $ sequence [
+         readTestsFromFile "TrieTest" (mkPath "trietest.json")
+                               (liftM makeTest . parseTrieTest),
+         readTestsFromFile "TrieAnyOrderTest" (mkPath "trieanyorder.json")
+                               (liftM makeTest . parseTrieAnyOrderTest)
+        ]
 
 parseTrieTest :: JSValue -> Maybe (Word256, [(B.ByteString, B.ByteString)])
 parseTrieTest val =
@@ -33,18 +36,37 @@ parseTrieTest val =
        let assoc = fromJSObject obj
        inputObj <- lookup "in" assoc
        inputArray <- asArray inputObj
-       inputPairs <- mapM parsePair inputArray
+       inputPairs <- mapM parseArrayPair inputArray
        rootObj <- lookup "root" assoc
        expectedRoot <- liftM decode256be $ parseSimpleType rootObj
        return (expectedRoot, inputPairs)
 
-makeTrieTest :: Word256 -> [(B.ByteString, B.ByteString)] -> Assertion
-makeTrieTest r ps = r @=? rootHash (foldl insertToTrie initContext ps)
+parseTrieAnyOrderTest :: JSValue
+                      -> Maybe (Word256, [(B.ByteString, B.ByteString)])
+parseTrieAnyOrderTest val =
+    do obj <- asObject val
+       let assoc = fromJSObject obj
+       inputObj <- lookup "in" assoc
+       inputKVs <- asObject inputObj
+       let inputKVs' = fromJSObject inputKVs
+       inputPairs <- mapM parseObjPair inputKVs'
+       rootObj <- lookup "root" assoc
+       expectedRoot <- liftM decode256be $ parseSimpleType rootObj
+       return (expectedRoot, inputPairs)
 
-parsePair :: JSValue -> Maybe (B.ByteString, B.ByteString)
-parsePair obj =
-    do pairObj <- asArray obj
+makeTest :: (Word256, [(B.ByteString, B.ByteString)]) -> Assertion
+makeTest (r, ps) = r @=? rootHash (foldl insertToTrie initContext ps)
+
+parseArrayPair :: JSValue -> Maybe (B.ByteString, B.ByteString)
+parseArrayPair arr =
+    do pairObj <- asArray arr
        when (2 /= length pairObj) Nothing
        k <- parseSimpleType $ pairObj !! 0
        v <- parseSimpleType $ pairObj !! 1
+       return (k, v)
+
+parseObjPair :: (String, JSValue) -> Maybe (B.ByteString, B.ByteString)
+parseObjPair obj =
+    do k <- parseBytes $ fst obj
+       v <- parseSimpleType $ snd obj
        return (k, v)

@@ -21,19 +21,13 @@ groupDataTests label ts =
     where formatErr errs =
               label ++ ":\n" ++ intercalate "," (map ("\t" ++) errs)
 
-filesAsTestGroup :: String -> [String]
-                    -> (JSValue -> Maybe Assertion)
-                    -> IO (Either String TestTree)
-filesAsTestGroup name paths interp =
-    liftM (groupDataTests name) $ mapM (flip readTestsFromFile interp) paths
-
-readTestsFromFile :: String -> (JSValue -> Maybe Assertion)
+readTestsFromFile :: String -> String -> (JSValue -> Maybe Assertion)
                   -> IO (Either String TestTree)
-readTestsFromFile path interpreter =
+readTestsFromFile label path interpreter =
     do json <- readJSONFile path
        return $ maybe errMsg grouper $ makeTestCases interpreter json
     where errMsg = Left $ "Error reading file: " ++ path
-          grouper = Right . testGroup path
+          grouper = Right . testGroup label
 
 readJSONFile :: String -> IO JSValue
 readJSONFile path =
@@ -69,12 +63,14 @@ parseSimpleType :: JSValue -> Maybe B.ByteString
 parseSimpleType obj =
     case obj of
       JSNull -> Just B.empty
-      JSString jsStr ->
-          let jsStr' = fromJSString jsStr in
-          case stripPrefix "0x" (fromJSString jsStr) of
-            Just hexStr -> parseHex hexStr
-            Nothing -> Just $ BC8.pack jsStr'
+      JSString jsStr -> parseBytes $ fromJSString jsStr
       _ -> Nothing
+
+parseBytes :: String -> Maybe B.ByteString
+parseBytes str =
+    case stripPrefix "0x" str of
+      Just x -> parseHex x
+      Nothing -> Just $ BC8.pack str
 
 parseHex :: String -> Maybe B.ByteString
 parseHex hexStr =
