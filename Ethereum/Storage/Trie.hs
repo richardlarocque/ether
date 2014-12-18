@@ -39,6 +39,8 @@ import           Ethereum.Encoding.HexPrefix
 import           Ethereum.Encoding.RLP
 import           Ethereum.Storage.HashMap
 
+import           Debug.Trace
+
 -- TODO: Stop using this.
 ignoreFailure :: Either a b -> b
 ignoreFailure (Right b) = b
@@ -61,12 +63,19 @@ instance Ix Word4 where
 ----
 
 instance Serialize TreeRef where
-        put (Serialized bs) = putSequenceBytes bs
-        put (TreeHash h) = put256 h
+        put (Serialized bs) = putByteString bs
+        --put (TreeHash 0) = putArray B.empty -- Empty tree == RLP Null == empty array
+        put (TreeHash h) = put256 h  -- FIXME is this right? put256AsArray???
 
-        get = getHash <|> getSerialized
-                where getHash = liftM TreeHash get256
-                      getSerialized = liftM Serialized getSequenceBytes
+        get = (liftM (TreeHash . decode256be) getArray)
+            <|> (liftM Serialized $ do { len <- getSequenceHeader; bs <- getByteString len; return $ runPut $ putSequenceBytes bs }) -- FIXME: awful hack
+            <|> (do { len <- remaining; x <- getBytes len; traceShow ("Complete failure: " ++ (show x)) (error "x") } )
+         --bs <- traceShow "Getting TreeRef" getArray
+         --        return $ case B.length bs of
+         --                   0 -> TreeHash 0
+         --                   x | x < 32 -> Serialized bs
+         --                   x | x == 32 -> TreeHash $ decode256be bs
+         --                   _ -> error "Strange parse"
 
 instance Serialize Tree where
         put (Empty) = error "Can't directly put empty tree"
@@ -76,14 +85,14 @@ instance Serialize Tree where
         put (Extension ns tr) = putSequence $ do
                 putHexPrefix ns False
                 put tr
-        put (Branch ts mi) = putSequence $ do
+        put b@(Branch ts mi) = traceShow ("PUTTING: " ++ show b) putSequence $ do
                 mapM_ put $ elems ts
                 case mi of
                         Just i -> putArray i
-                        Nothing -> return ()
+                        Nothing -> putArray B.empty
 
         get = do len <- liftM fromIntegral getSequenceHeader
-                 isolate len getLeaf
+                 traceShow ("TreeGet len: " ++ (show len)) $ isolate len getLeaf
                   <|> isolate len getExtension
                   <|> isolate len getBranch
 
@@ -103,8 +112,12 @@ deref tr =
                 TreeHash h -> do
                         s <- ask
                         let bs = fromMaybe (error "lookup failed") (load h s)
-                        return $ ignoreFailure $ runGet get bs
-                Serialized bs -> return $ ignoreFailure $ runGet get bs
+                        return $ case runGet get bs of
+                                   Left err -> error ("TreeHash runget Failed: " ++ show bs)
+                                   Right x -> x
+                Serialized bs -> return $ case runGet get bs of
+                                            Left err -> error ("Serialized runget Failed " ++ show bs)
+                                            Right x -> x
 
 -----
 
@@ -129,17 +142,16 @@ getExtension = do ns <- getHexPrefix False
 getBranch :: Get Tree
 getBranch = do
         trs <- replicateM 16 (get :: Get TreeRef)
-        done <- isEmpty
-        mi <- if not done
-           then liftM Just getArray
-           else return Nothing
+        t <- getArray
+        let mi = if B.length t == 0
+                 then Nothing
+                 else Just t
         return $ Branch (listArray (0,15) trs) mi
-
 
 insert :: TreeRef -> (B.ByteString, B.ByteString) -> Reader MapStorage (TreeRef, [Tree])
 insert tr (k, v) = do t <- deref tr
                       (tr', nodes) <- treeInsert t (nibbleize $ B.unpack k, v)
-                      return (tref tr', nodes)
+                      return $ traceShow ("path" ++ show (map (\x -> (tref x, x)) nodes)) $ (tref tr', nodes)
 
 lookup :: TreeRef -> B.ByteString -> Reader MapStorage (Maybe B.ByteString)
 lookup tr k = do t <- deref tr
@@ -171,6 +183,7 @@ lookup' ns tree = case tree of
         where recurse k tr = deref tr >>= lookup' k
 
 -----------------------------------
+-- TODO: Figure out this tangled mess...
 
 treeInsert :: Tree -> ([Word4], B.ByteString) -> Reader MapStorage (Tree, [Tree])
 

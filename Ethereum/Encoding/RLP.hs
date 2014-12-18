@@ -56,6 +56,9 @@ put256 = putScalar . fromIntegral
 get256 ::  Get Word256
 get256 = liftM (fromIntegral . decode256be) getArray
 
+put256AsArray :: Word256 -> Put
+put256AsArray = putArray . encode256be
+
 putSequenceHeader :: Integral a => a -> Put
 putSequenceHeader len =
         if len < 56
@@ -91,11 +94,12 @@ getSequence g1 =
 getSequenceHeader ::  Get Int
 getSequenceHeader =
         do b <- get :: Get Word8
-           if b <= 247
-              then return $ fromIntegral b - 192
-              else do ls <- getByteString (fromIntegral b - 247)
-                      len <- decodeScalar ls
-                      return $ fromIntegral len
+           case b of
+             x | x <= 192 -> fail "Invalid sequence header"
+             x | x <= 247 -> return $ fromIntegral b - 192
+             _            -> do ls <- getByteString (fromIntegral b - 247)
+                                len <- decodeScalar ls
+                                return $ fromIntegral len
 
 getSequenceBytes :: Get B.ByteString
 getSequenceBytes = getSequence $ getBytes =<< remaining

@@ -11,6 +11,8 @@ import           Ethereum.State.Address
 import           Ethereum.Storage.HashMap
 import           Ethereum.Storage.Trie    as T
 
+import           Debug.Trace
+
 data Context = Context MapStorage TreeRef
 
 -- FIXME: Stop using this.
