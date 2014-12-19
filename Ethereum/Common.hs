@@ -68,6 +68,7 @@ nibbleize :: [Word8] -> [Word4]
 nibbleize bs = map fromIntegral $ concatMap toNibbles bs
         where toNibbles b = [highNibble b, lowNibble b]
 
+-- TODO: You can do better than this.  Use shifts.
 asBE :: Integral a => a -> B.ByteString
 asBE x | x < 0 = undefined
 asBE x = B.pack $ reverse $ unfoldr (\v ->

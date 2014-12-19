@@ -15,6 +15,7 @@ module Ethereum.Encoding.HexPrefix where
 
 import           Control.Monad
 import           Data.Bits
+import qualified Data.ByteString       as B
 import           Data.Serialize
 import           Data.Word
 import           Data.Word.Odd
@@ -23,6 +24,14 @@ import           Ethereum.Encoding.RLP
 
 data HPArray = HPArray [Word4] Bool
         deriving (Show,Eq)
+
+asHexPrefix :: [Word4] -> Bool -> B.ByteString
+asHexPrefix ns b = runPut $ putHexPrefix ns b
+
+unHexPrefix :: B.ByteString -> Either String HPArray
+unHexPrefix = runGet $ do
+  len <- getArrayHeader
+  isolate (fromIntegral len) getHexPrefix'
 
 putHexPrefix :: [Word4] -> Bool -> Put
 putHexPrefix ns f = putArray $ runPut (putHexPrefixBytes ns f)
@@ -40,7 +49,6 @@ getArrayHeader = do
                            ls <- getByteString (fromIntegral b - 183)
                            decodeScalar ls
                 _ -> fail "Not paresable as array"
-
 
 getHexPrefix :: Bool -> Get [Word4]
 getHexPrefix f = do

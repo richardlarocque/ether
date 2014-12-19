@@ -62,39 +62,83 @@ instance Ix Word4 where
 
 ----
 
-instance Serialize TreeRef where
-        put (Serialized bs) = putByteString bs
-        --put (TreeHash 0) = putArray B.empty -- Empty tree == RLP Null == empty array
-        put (TreeHash h) = put256 h  -- FIXME is this right? put256AsArray???
+-- instance Serialize TreeRef where
+--         put (Serialized bs) = putByteString bs
+--         --put (TreeHash 0) = putArray B.empty -- Empty tree == RLP Null == empty array
+--         put (TreeHash h) = put256 h  -- FIXME is this right? put256AsArray???
+--
+--         get = (liftM (TreeHash . decode256be) getArray)
+--             <|> (liftM Serialized $ do { len <- getSequenceHeader; bs <- getByteString len; return $ runPut $ putSequenceBytes bs }) -- FIXME: awful hack
+--             <|> (do { len <- remaining; x <- getBytes len; traceShow ("Complete failure: " ++ (show x)) (error "x") } )
+--          --bs <- traceShow "Getting TreeRef" getArray
+--          --        return $ case B.length bs of
+--          --                   0 -> TreeHash 0
+--          --                   x | x < 32 -> Serialized bs
+--          --                   x | x == 32 -> TreeHash $ decode256be bs
+--          --                   _ -> error "Strange parse"
 
-        get = (liftM (TreeHash . decode256be) getArray)
-            <|> (liftM Serialized $ do { len <- getSequenceHeader; bs <- getByteString len; return $ runPut $ putSequenceBytes bs }) -- FIXME: awful hack
-            <|> (do { len <- remaining; x <- getBytes len; traceShow ("Complete failure: " ++ (show x)) (error "x") } )
-         --bs <- traceShow "Getting TreeRef" getArray
-         --        return $ case B.length bs of
-         --                   0 -> TreeHash 0
-         --                   x | x < 32 -> Serialized bs
-         --                   x | x == 32 -> TreeHash $ decode256be bs
-         --                   _ -> error "Strange parse"
+treeRefToRLP :: TreeRef -> RLP
+treeRefToRLP (Serialized bs) = Item bs
+treeRefToRLP (TreeHash h) = scalarToRLP h
+
+treeToRLP :: Tree -> RLP
+treeToRLP Empty = error "Can't directly serialize empty tree"
+treeToRLP (Leaf ns i) = Group [Item (asHexPrefix ns True), Item i]
+treeToRLP (Extension ns tr) = Group [Item (asHexPrefix ns False),
+                                     treeRefToRLP tr]
+treeToRLP (Branch ts mi) =
+    Group $ map treeRefToRLP (elems ts) ++ [lastItem]
+    where lastItem = Item $ fromMaybe B.empty mi
+
+treeRefFromRLP :: MonadPlus m => RLP -> m TreeRef
+treeRefFromRLP (Item bs) | B.length bs <  32 = return $ Serialized bs
+treeRefFromRLP (Item bs) | B.length bs == 32 = return $ TreeHash (decode256be bs)
+treeRefFromRLP _                             = mzero
+
+treeFromRLP :: MonadPlus m => RLP -> m Tree
+treeFromRLP (Group [Item hp, Item i]) =
+    case unHexPrefix hp of
+      Right (HPArray ns True)  -> return $ Leaf ns i
+      Right (HPArray ns False) ->
+          case runGet get i of
+            Left _ -> mzero
+            Right tr -> return $ Extension ns tr
+      _ -> mzero
+
+treeFromRLP (Group ts) | length ts == 17 && all isItem ts =
+    let (bs, [Item li]) = splitAt 16 ts
+        lv = if B.null li then Nothing else Just li
+    in do bv <- mapM treeRefFromRLP bs
+          return $ Branch (listArray (0,15) bv) lv
+treeFromRLP _ = mzero
 
 instance Serialize Tree where
-        put (Empty) = error "Can't directly put empty tree"
-        put (Leaf ns i) = putSequence $ do
-                putHexPrefix ns True
-                putArray i
-        put (Extension ns tr) = putSequence $ do
-                putHexPrefix ns False
-                put tr
-        put b@(Branch ts mi) = traceShow ("PUTTING: " ++ show b) putSequence $ do
-                mapM_ put $ elems ts
-                case mi of
-                        Just i -> putArray i
-                        Nothing -> putArray B.empty
+    put t = (\x -> traceShow ("Serializing tree: " ++ show (t,x)) $ put x) (treeToRLP t)
+    get = get >>= \t -> traceShow ("Unserializing tree: " ++ show t) (treeFromRLP t)
 
-        get = do len <- liftM fromIntegral getSequenceHeader
-                 traceShow ("TreeGet len: " ++ (show len)) $ isolate len getLeaf
-                  <|> isolate len getExtension
-                  <|> isolate len getBranch
+instance Serialize TreeRef where
+    --put = put . treeRefToRLP
+    put t = (\x -> traceShow ("Serializing tree: " ++ show (t,x)) $ put x) (treeRefToRLP t)
+    get = get >>= \t -> traceShow ("Unserializing treeref: " ++ show t) (treeRefFromRLP t)
+
+-- instance Serialize Tree where
+--         put (Empty) = error "Can't directly put empty tree"
+--         put (Leaf ns i) = putSequence $ do
+--                 putHexPrefix ns True
+--                 putArray i
+--         put (Extension ns tr) = putSequence $ do
+--                 putHexPrefix ns False
+--                 put tr
+--         put b@(Branch ts mi) = traceShow ("PUTTING: " ++ show b) putSequence $ do
+--                 mapM_ put $ elems ts
+--                 case mi of
+--                         Just i -> putArray i
+--                         Nothing -> putArray B.empty
+--
+--         get = do len <- liftM fromIntegral getSequenceHeader
+--                  traceShow ("TreeGet len: " ++ (show len)) $ isolate len getLeaf
+--                   <|> isolate len getExtension
+--                   <|> isolate len getBranch
 
 -----
 
@@ -102,7 +146,7 @@ tref :: Tree -> TreeRef
 tref Empty = TreeHash 0
 tref t     = let serialized = encode t
                   in if B.length serialized < 32
-                        then Serialized serialized
+                        then traceShow ( "Will Serialize " ++ show (t, serialized) ) (Serialized serialized)
                         else TreeHash $ hashAsWord serialized
 
 deref :: TreeRef -> Reader MapStorage Tree

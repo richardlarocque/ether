@@ -20,6 +20,49 @@ import           Data.Serialize
 import           Data.Word
 import           Ethereum.Common
 
+data RLP = Group [RLP]
+         | Item B.ByteString
+           deriving (Show)
+
+isItem :: RLP -> Bool
+isItem (Item _) = True
+isItem _        = False
+
+fromItem :: RLP -> B.ByteString
+fromItem (Item i) = i
+fromItem _        = error "Input RLP is not an item"
+
+instance Serialize RLP where
+    put (Group s) = putSequence (mapM_ put s)
+    put (Item a)  = putArray a
+    get = do b <- get :: Get Word8
+             case b of
+               _ | b <  128 -> return $ Item $ B.singleton b
+               _ | b <= 183 ->
+                    liftM Item $ getByteString $ fromIntegral (b - 128)
+               x | x <= 192 ->
+                    do yb <- getByteString $ fromIntegral (x - 183)
+                       zl <- liftM fromIntegral $ decodeScalar yb
+                       liftM Item $ getByteString zl
+               _ | b <= 247 ->
+                    do let sl = fromIntegral (b - 192)
+                       liftM Group $ isolate sl getSequenceElements
+               _            ->
+                    do slb <- getByteString $ fromIntegral (b - 247)
+                       sl <- liftM fromIntegral $ decodeScalar slb
+                       liftM Group $ isolate sl getSequenceElements
+        where getSequenceElements :: Get [RLP]
+              getSequenceElements =
+                  do r <- remaining
+                     if r == 0
+                     then return []
+                     else do x <- get :: Get RLP
+                             xs <- getSequenceElements
+                             return (x:xs)
+
+scalarToRLP :: Integral a => a -> RLP
+scalarToRLP i = Item $ asBE i
+
 putArray ::  B.ByteString -> Put
 putArray bs = case bs of
         _ | B.length bs == 1 && B.head bs < 128 -> putWord8 (B.head bs)
@@ -109,6 +152,6 @@ getWord8s x = replicateM (fromIntegral x) get
 
 decodeScalar :: Monad m => B.ByteString -> m Integer
 decodeScalar bs = case bs of
-        _ | B.length bs == 0 -> return 0
+        _ | B.length bs == 0 -> return 0  -- FIXME: This shouln't be necessary
         _ | B.head bs == 0 -> fail "Unexpected leading zero(es)"
         _ -> return $ B.foldl' (\x y -> x * 256 + fromIntegral y) 0 bs
