@@ -90,19 +90,25 @@ treeToRLP (Branch ts mi) =
     Group $ map treeRefToRLP (elems ts) ++ [lastItem]
     where lastItem = Item $ fromMaybe B.empty mi
 
-treeRefFromRLP :: MonadPlus m => RLP -> m TreeRef
+treeRefFromRLP :: RLP -> Maybe TreeRef
+treeRefFromRLP (Item bs) | B.length bs > 32 = mzero
+treeRefFromRLP (Item bs) =
+    return $ case runGet get bs of
+      Right (Group x) -> traceShow ("Serialized: " ++ show x) $ Serialized bs
+      _               -> traceShow ("TreeHash: " ++ show bs) $ TreeHash $ decode256be bs
+
 treeRefFromRLP (Item bs) | B.length bs <  32 = return $ Serialized bs
 treeRefFromRLP (Item bs) | B.length bs == 32 = return $ TreeHash (decode256be bs)
 treeRefFromRLP _                             = mzero
 
-treeFromRLP :: MonadPlus m => RLP -> m Tree
-treeFromRLP (Group [Item hp, Item i]) =
+treeFromRLP :: RLP -> Maybe Tree
+treeFromRLP (Group [Item hp, i@(Item bs)]) =
     case unHexPrefix hp of
-      Right (HPArray ns True)  -> return $ Leaf ns i
+      Right (HPArray ns True)  -> return $ Leaf ns bs
       Right (HPArray ns False) ->
-          case runGet get i of
-            Left _ -> mzero
-            Right tr -> return $ Extension ns tr
+          case treeRefFromRLP i of
+            Nothing -> mzero
+            Just tr -> return $ Extension ns tr
       _ -> mzero
 
 treeFromRLP (Group ts) | length ts == 17 && all isItem ts =
@@ -114,12 +120,12 @@ treeFromRLP _ = mzero
 
 instance Serialize Tree where
     put t = (\x -> traceShow ("Serializing tree: " ++ show (t,x)) $ put x) (treeToRLP t)
-    get = get >>= \t -> traceShow ("Unserializing tree: " ++ show t) (treeFromRLP t)
+    get = get >>= \t -> traceShow ("Unserializing tree: " ++ show t) (maybe mzero return (treeFromRLP t))
 
 instance Serialize TreeRef where
     --put = put . treeRefToRLP
-    put t = (\x -> traceShow ("Serializing tree: " ++ show (t,x)) $ put x) (treeRefToRLP t)
-    get = get >>= \t -> traceShow ("Unserializing treeref: " ++ show t) (treeRefFromRLP t)
+    put t = (\x -> traceShow ("Serializing treeref: " ++ show (t,x)) $ put x) (treeRefToRLP t)
+    get = get >>= \t -> traceShow ("Unserializing treeref: " ++ show t) (maybe mzero return (treeRefFromRLP t))
 
 -- instance Serialize Tree where
 --         put (Empty) = error "Can't directly put empty tree"
