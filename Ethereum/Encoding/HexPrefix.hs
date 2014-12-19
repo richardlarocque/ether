@@ -26,11 +26,11 @@ data HPArray = HPArray [Word4] Bool
         deriving (Show,Eq)
 
 asHexPrefix :: [Word4] -> Bool -> B.ByteString
-asHexPrefix ns b = runPut $ putHexPrefix ns b
+asHexPrefix ns b = runPut $ putHexPrefixBytes ns b
 
 unHexPrefix :: B.ByteString -> Either String HPArray
 unHexPrefix = runGet $ do
-  len <- getArrayHeader
+  len <- remaining
   isolate (fromIntegral len) getHexPrefix'
 
 putHexPrefix :: [Word4] -> Bool -> Put

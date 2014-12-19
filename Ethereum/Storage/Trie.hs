@@ -121,7 +121,6 @@ treeFromRLP _ = mzero
 instance Serialize Tree where
     put t = (\x -> traceShow ("Serializing tree: " ++ show (t,x)) $ put x) (treeToRLP t)
     get = get >>= \t -> traceShow ("Unserializing tree: " ++ show t) (maybe mzero return (treeFromRLP t))
-
 instance Serialize TreeRef where
     --put = put . treeRefToRLP
     put t = (\x -> traceShow ("Serializing treeref: " ++ show (t,x)) $ put x) (treeRefToRLP t)
@@ -201,7 +200,7 @@ getBranch = do
 insert :: TreeRef -> (B.ByteString, B.ByteString) -> Reader MapStorage (TreeRef, [Tree])
 insert tr (k, v) = do t <- deref tr
                       (tr', nodes) <- treeInsert t (nibbleize $ B.unpack k, v)
-                      return $ traceShow ("path" ++ show (map (\x -> (tref x, x)) nodes)) $ (tref tr', nodes)
+                      return $ traceShow ("path" ++ show (map (\x -> (tref x, x, runPut $ put x, treeToRLP x)) nodes)) $ (tref tr', nodes)
 
 lookup :: TreeRef -> B.ByteString -> Reader MapStorage (Maybe B.ByteString)
 lookup tr k = do t <- deref tr
