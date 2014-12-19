@@ -22,7 +22,7 @@ import           Ethereum.Common
 
 data RLP = Group [RLP]
          | Item B.ByteString
-           deriving (Show)
+           deriving (Show, Eq)
 
 isItem :: RLP -> Bool
 isItem (Item _) = True

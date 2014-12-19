@@ -51,7 +51,7 @@ data Tree = Empty
           | Branch (Array Word4 TreeRef) (Maybe B.ByteString)
           deriving (Show, Eq)
 
-data TreeRef = Serialized B.ByteString
+data TreeRef = Serialized RLP
              | TreeHash Word256
              deriving (Show, Eq)
 
@@ -78,8 +78,9 @@ instance Ix Word4 where
 --          --                   _ -> error "Strange parse"
 
 treeRefToRLP :: TreeRef -> RLP
-treeRefToRLP (Serialized bs) = Item bs
-treeRefToRLP (TreeHash h) = scalarToRLP h
+treeRefToRLP (Serialized s) = s
+treeRefToRLP (TreeHash 0) = Item $ B.empty
+treeRefToRLP (TreeHash h) = Item $ encode256be h
 
 treeToRLP :: Tree -> RLP
 treeToRLP Empty = error "Can't directly serialize empty tree"
@@ -92,26 +93,21 @@ treeToRLP (Branch ts mi) =
 
 treeRefFromRLP :: RLP -> Maybe TreeRef
 treeRefFromRLP (Item bs) | B.length bs > 32 = mzero
-treeRefFromRLP (Item bs) =
-    return $ case runGet get bs of
-      Right (Group x) -> traceShow ("Serialized: " ++ show x) $ Serialized bs
-      _               -> traceShow ("TreeHash: " ++ show bs) $ TreeHash $ decode256be bs
-
-treeRefFromRLP (Item bs) | B.length bs <  32 = return $ Serialized bs
-treeRefFromRLP (Item bs) | B.length bs == 32 = return $ TreeHash (decode256be bs)
-treeRefFromRLP _                             = mzero
+treeRefFromRLP (Item bs) = return $ TreeHash $ decode256be bs
+treeRefFromRLP s@(Group _) = return $ Serialized s
+treeRefFromRLP _ = mzero
 
 treeFromRLP :: RLP -> Maybe Tree
-treeFromRLP (Group [Item hp, i@(Item bs)]) =
-    case unHexPrefix hp of
-      Right (HPArray ns True)  -> return $ Leaf ns bs
-      Right (HPArray ns False) ->
-          case treeRefFromRLP i of
+treeFromRLP (Group [Item hp, i]) =
+    case (unHexPrefix hp, i) of
+      (Right (HPArray ns True),  Item bs) -> return $ Leaf ns bs
+      (Right (HPArray ns False), x) ->
+          case treeRefFromRLP x of
             Nothing -> mzero
             Just tr -> return $ Extension ns tr
       _ -> mzero
 
-treeFromRLP (Group ts) | length ts == 17 && all isItem ts =
+treeFromRLP (Group ts) | length ts == 17 && isItem (ts !! 16) =
     let (bs, [Item li]) = splitAt 16 ts
         lv = if B.null li then Nothing else Just li
     in do bv <- mapM treeRefFromRLP bs
@@ -151,7 +147,7 @@ tref :: Tree -> TreeRef
 tref Empty = TreeHash 0
 tref t     = let serialized = encode t
                   in if B.length serialized < 32
-                        then traceShow ( "Will Serialize " ++ show (t, serialized) ) (Serialized serialized)
+                        then traceShow ( "Will Serialize " ++ show (t, serialized) ) (Serialized $ treeToRLP t)
                         else TreeHash $ hashAsWord serialized
 
 deref :: TreeRef -> Reader MapStorage Tree
@@ -164,9 +160,9 @@ deref tr =
                         return $ case runGet get bs of
                                    Left err -> error ("TreeHash runget Failed: " ++ show bs)
                                    Right x -> x
-                Serialized bs -> return $ case runGet get bs of
-                                            Left err -> error ("Serialized runget Failed " ++ show bs)
-                                            Right x -> x
+                Serialized s -> return $ case treeFromRLP s of
+                                            Nothing -> error ("Serialized runget Failed " ++ show s)
+                                            Just x -> x
 
 -----
 
