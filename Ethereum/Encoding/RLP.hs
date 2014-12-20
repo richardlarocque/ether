@@ -192,3 +192,6 @@ decodeScalar bs = case bs of
         _ | B.length bs == 0 -> return 0  -- FIXME: This shouln't be necessary
         _ | B.head bs == 0 -> fail "Unexpected leading zero(es)"
         _ -> return $ B.foldl' (\x y -> x * 256 + fromIntegral y) 0 bs
+
+nullRLP :: RLP
+nullRLP = Item B.empty

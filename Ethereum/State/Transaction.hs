@@ -72,7 +72,7 @@ middleRLPSnippet :: Transaction -> [RLP]
 middleRLPSnippet (T _ _ _ _ (Left (MessageCall to dat)) _ _ _) =
     [ toRLP to, Item dat ]
 middleRLPSnippet (T _ _ _ _ (Right (ContractCreation ini)) _ _ _) =
-    [ toRLP zeroAddress, Item ini ]
+    [ nullRLP, Item ini ]
 
 signatureRLPSnippet :: Transaction -> [RLP]
 signatureRLPSnippet (T _ _ _ _ _ w r s) = map toRLP [ w, r, s ]
