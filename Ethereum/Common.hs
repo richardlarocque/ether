@@ -46,6 +46,9 @@ encode160be = toNByteBigEndian 20
 decode160be :: B.ByteString -> Word160
 decode160be = fromNByteBigEndian 20
 
+encodeScalar :: Integer -> B.ByteString
+encodeScalar = asBE
+
 hashAsWord :: B.ByteString -> Word256
 hashAsWord = decode256be . hashAsBytes
 

@@ -26,7 +26,7 @@ isConsistent c b = checkNonce && checkUncles && checkReceipts && checkState
 receiptsToTrie :: [TransactionReceipt] -> Context
 receiptsToTrie rs =
         let keys = map (runPut . putScalar) ([0..] :: [Integer])
-            values = map (runPut . putTransactionReceipt) rs
+            values = map (runPut . put . receiptToRLP) rs
             pairs = zip keys values
             c0 = initContext
         in foldr (flip insertToTrie) c0 pairs
@@ -57,7 +57,8 @@ isBlockNonceValid bh =
 
 isUnclesHashValid :: Block -> Bool
 isUnclesHashValid b =
-    let actualHash = hashAsWord $ runPut (putUncles (uncles b))
+    let actualHash = hashAsWord $ runPut $ put
+                     $ Group $ map blockHeaderToRLP $ uncles b
         headerHash = (unclesHash . header) b
     in headerHash == actualHash
 
@@ -69,7 +70,7 @@ isReceiptHashValid b =
 
 proofOfWork :: BlockHeader -> Word256 -> Word256
 proofOfWork bh nonc =
-    let headerBytes = runPut $ putBlockHeaderWithoutNonce bh
+    let headerBytes = (runPut . put . blockHeaderWithoutNonceToRLP) bh
         innerHash   = toBytes (hash headerBytes :: Digest SHA3_256)
         outerBytes  = innerHash `B.append` encode256be nonc
         outerHash   = hashAsWord outerBytes

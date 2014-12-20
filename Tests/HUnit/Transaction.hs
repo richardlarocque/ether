@@ -3,6 +3,7 @@ module Tests.HUnit.Transaction(tests) where
 import qualified Data.ByteString                  as B
 import           Ethereum.Builders
 import           Ethereum.Crypto
+import           Ethereum.Encoding.RLP
 import           Ethereum.State.Account
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
@@ -13,14 +14,7 @@ import           Test.Tasty.HUnit
 import           Tests.Helpers
 
 roundTripTransaction :: Transaction -> TestTree
-roundTripTransaction = roundTripTest putTransaction getTransaction
-
-roundTripContractCreation :: ContractCreation -> TestTree
-roundTripContractCreation =
-    roundTripTest putContractCreation getContractCreation
-
-roundTripMessageCall :: MessageCall -> TestTree
-roundTripMessageCall = roundTripTest putMessageCall getMessageCall
+roundTripTransaction = roundTripTest putRLP getRLP
 
 cc :: PrivateKey -> Integer -> Integer -> Integer -> Integer -> B.ByteString
    -> Transaction
@@ -106,18 +100,15 @@ verifyTests = testGroup "Verify"
         ]]
 
 serializeTests ::  TestTree
-serializeTests = testGroup "Serialize"
-        [  testGroup "ContractCreation" [
-        roundTripContractCreation $ ContractCreation B.empty
-        ], testGroup "MessageCall" [
-        roundTripMessageCall $ MessageCall zeroAddress B.empty
-        ], testGroup "TransactionCC" [
+serializeTests = testGroup "Serialize" [
+        testGroup "TransactionCC" [
         roundTripTransaction $ cc acc1234 10 10000 1 10 B.empty,
         roundTripTransaction $ cc acc1234 10 10000 1 10 (B.replicate 10 0),
         roundTripTransaction $ cc acc1234 10 10000 1 10 (B.replicate 10 0xff),
         let v = 2^(255 :: Integer) in
             roundTripTransaction $ cc acc1234 v v v v B.empty
-        ], testGroup "TransactionMC" [
+        ],
+        testGroup "TransactionMC" [
         roundTripTransaction $ mc acc1234 10 10000 1 10 (A 10) B.empty,
         roundTripTransaction $
             mc acc1234 10 10000 1 10 (A 10) (B.replicate 10 0),

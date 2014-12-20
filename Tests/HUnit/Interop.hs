@@ -3,6 +3,7 @@ module Tests.HUnit.Interop(tests) where
 import           Control.Monad
 import qualified Data.ByteString            as B
 import           Data.Serialize
+import           Ethereum.Encoding.RLP
 import           Ethereum.State.Block
 import           Test.Tasty
 import           Test.Tasty.HUnit
@@ -12,7 +13,7 @@ import           Ethereum.BlockVerification
 
 singleBlockTest :: String -> ((B.ByteString, Either String Block) -> Assertion) -> TestTree
 singleBlockTest name test = testGroup name $ map f (zip ([1..]::[Integer]) D.blocks)
-    where f (n, b) = testCase ("Block " ++ show n) (test (b, runGet getBlock b))
+    where f (n, b) = testCase ("Block " ++ show n) (test (b, runGet getRLP b))
 
 checkParse :: (B.ByteString, Either String Block) -> Assertion
 checkParse (_, b) = case b of
@@ -23,7 +24,7 @@ checkReserialize :: (B.ByteString, Either String Block) -> Assertion
 checkReserialize (orig, p) =
     case p of
       Left _   -> assertFailure "bad parse"
-      Right p' -> orig @=? runPut (putBlock p')
+      Right p' -> orig @=? runPut (putRLP p')
 
 singleBlockTest' :: String -> (Block -> Bool) -> TestTree
 singleBlockTest' name test = singleBlockTest name test'

@@ -8,6 +8,7 @@ import           Data.LargeWord
 import           Data.Maybe
 import           Data.Serialize
 import           Ethereum.Common
+import           Ethereum.Encoding.RLP
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
 
@@ -42,10 +43,13 @@ signature (T _ _ _ _ _ w r s) =
                 _ -> error "Bad RecoveryID"
     in (compactSig, fromInteger rId)
 
+transactionHash :: Transaction -> B.ByteString
+transactionHash t = hashAsBytes $ runPut $ put $ unsignedTransactionRLP t
+
 transactionSender :: Transaction -> Maybe Address
 transactionSender t =
     do let (cSig, rId) = signature t
-       let h = hashAsBytes $ runPut $ putUnsignedTransaction t
+       let h = transactionHash t
        pub <- S.recoverPublicC h cSig rId
        return $ pubkeyToAddress pub
 
@@ -60,7 +64,7 @@ badNonce :: S.Nonce
 
 signTransaction :: PrivateKey -> Transaction -> Maybe (Integer, Integer, Integer)
 signTransaction (Priv pr) t =
-    do let h = hashAsBytes $ runPut $ putUnsignedTransaction t
+    do let h = transactionHash t
        (cSig, rId) <- S.signCompact h pr badNonce
        let cSigBytes = runPut $ put cSig
        let (rBytes, sBytes) = B.splitAt 32 cSigBytes

@@ -24,7 +24,6 @@ module Ethereum.Storage.Trie(
 
 -- TODO: Many of those exports are meant only for tests...
 
-import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Reader
 import           Data.Array
@@ -38,12 +37,6 @@ import           Ethereum.Common
 import           Ethereum.Encoding.HexPrefix
 import           Ethereum.Encoding.RLP
 import           Ethereum.Storage.HashMap
-
-import           Debug.Trace
-
--- TODO: Stop using this.
-ignoreFailure :: Either a b -> b
-ignoreFailure (Right b) = b
 
 data Tree = Empty
           | Leaf [Word4] B.ByteString
@@ -62,24 +55,9 @@ instance Ix Word4 where
 
 ----
 
--- instance Serialize TreeRef where
---         put (Serialized bs) = putByteString bs
---         --put (TreeHash 0) = putArray B.empty -- Empty tree == RLP Null == empty array
---         put (TreeHash h) = put256 h  -- FIXME is this right? put256AsArray???
---
---         get = (liftM (TreeHash . decode256be) getArray)
---             <|> (liftM Serialized $ do { len <- getSequenceHeader; bs <- getByteString len; return $ runPut $ putSequenceBytes bs }) -- FIXME: awful hack
---             <|> (do { len <- remaining; x <- getBytes len; traceShow ("Complete failure: " ++ (show x)) (error "x") } )
---          --bs <- traceShow "Getting TreeRef" getArray
---          --        return $ case B.length bs of
---          --                   0 -> TreeHash 0
---          --                   x | x < 32 -> Serialized bs
---          --                   x | x == 32 -> TreeHash $ decode256be bs
---          --                   _ -> error "Strange parse"
-
 treeRefToRLP :: TreeRef -> RLP
 treeRefToRLP (Serialized s) = s
-treeRefToRLP (TreeHash 0) = Item $ B.empty
+treeRefToRLP (TreeHash 0) = Item B.empty  -- TODO: This ain't right.  Report bug about this.
 treeRefToRLP (TreeHash h) = Item $ encode256be h
 
 treeToRLP :: Tree -> RLP
@@ -115,39 +93,17 @@ treeFromRLP (Group ts) | length ts == 17 && isItem (ts !! 16) =
 treeFromRLP _ = mzero
 
 instance Serialize Tree where
-    put t = (\x -> traceShow ("Serializing tree: " ++ show (t,x)) $ put x) (treeToRLP t)
-    get = get >>= \t -> traceShow ("Unserializing tree: " ++ show t) (maybe mzero return (treeFromRLP t))
+    put = put . treeToRLP
+    get = get >>= \x -> maybe mzero return (treeFromRLP x)
 instance Serialize TreeRef where
-    --put = put . treeRefToRLP
-    put t = (\x -> traceShow ("Serializing treeref: " ++ show (t,x)) $ put x) (treeRefToRLP t)
-    get = get >>= \t -> traceShow ("Unserializing treeref: " ++ show t) (maybe mzero return (treeRefFromRLP t))
-
--- instance Serialize Tree where
---         put (Empty) = error "Can't directly put empty tree"
---         put (Leaf ns i) = putSequence $ do
---                 putHexPrefix ns True
---                 putArray i
---         put (Extension ns tr) = putSequence $ do
---                 putHexPrefix ns False
---                 put tr
---         put b@(Branch ts mi) = traceShow ("PUTTING: " ++ show b) putSequence $ do
---                 mapM_ put $ elems ts
---                 case mi of
---                         Just i -> putArray i
---                         Nothing -> putArray B.empty
---
---         get = do len <- liftM fromIntegral getSequenceHeader
---                  traceShow ("TreeGet len: " ++ (show len)) $ isolate len getLeaf
---                   <|> isolate len getExtension
---                   <|> isolate len getBranch
-
------
+    put = put . treeRefToRLP
+    get = get >>= \x -> maybe mzero return (treeRefFromRLP x)
 
 tref :: Tree -> TreeRef
 tref Empty = TreeHash 0
 tref t     = let serialized = encode t
                   in if B.length serialized < 32
-                        then traceShow ( "Will Serialize " ++ show (t, serialized) ) (Serialized $ treeToRLP t)
+                        then Serialized $ treeToRLP t
                         else TreeHash $ hashAsWord serialized
 
 deref :: TreeRef -> Reader MapStorage Tree
@@ -174,29 +130,10 @@ emptyBranch = Branch (listArray (0,15) (replicate 16 zeroRef)) Nothing
 
 -----
 
-getLeaf :: Get Tree
-getLeaf = do ns <- getHexPrefix True
-             i <- getArray
-             return $ Leaf ns i
-
-getExtension :: Get Tree
-getExtension = do ns <- getHexPrefix False
-                  tr <- get
-                  return $ Extension ns tr
-
-getBranch :: Get Tree
-getBranch = do
-        trs <- replicateM 16 (get :: Get TreeRef)
-        t <- getArray
-        let mi = if B.length t == 0
-                 then Nothing
-                 else Just t
-        return $ Branch (listArray (0,15) trs) mi
-
 insert :: TreeRef -> (B.ByteString, B.ByteString) -> Reader MapStorage (TreeRef, [Tree])
 insert tr (k, v) = do t <- deref tr
                       (tr', nodes) <- treeInsert t (nibbleize $ B.unpack k, v)
-                      return $ traceShow ("path" ++ show (map (\x -> (tref x, x, runPut $ put x, treeToRLP x)) nodes)) $ (tref tr', nodes)
+                      return (tref tr', nodes)
 
 lookup :: TreeRef -> B.ByteString -> Reader MapStorage (Maybe B.ByteString)
 lookup tr k = do t <- deref tr

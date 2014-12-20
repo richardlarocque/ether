@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 {- |
 Module      :  Ethereum.Encoding.RLP
 Description :  Implementation of the Ethereum RLP encoding
@@ -20,6 +23,7 @@ import           Data.Serialize
 import           Data.Word
 import           Ethereum.Common
 
+-- | The basic structure of RLP serialization format.
 data RLP = Group [RLP]
          | Item B.ByteString
            deriving (Show, Eq)
@@ -31,6 +35,33 @@ isItem _        = False
 fromItem :: RLP -> B.ByteString
 fromItem (Item i) = i
 fromItem _        = error "Input RLP is not an item"
+
+-- | A class for types that can be serialized as RLP.
+class RLPSerialize a where
+    asRLP :: a -> RLP
+    fromRLP :: RLP -> Maybe a
+
+instance RLPSerialize Integer where
+    asRLP = Item . encodeScalar
+    fromRLP (Item i) = decodeScalar i
+    fromRLP _ = Nothing
+
+instance RLPSerialize Word256 where
+    asRLP = Item . encode256be
+    fromRLP (Item i) = Just $ decode256be i
+    fromRLP _ = Nothing
+
+instance RLPSerialize B.ByteString where
+    asRLP = Item
+    fromRLP (Item i) = Just i
+    fromRLP _ = Nothing
+
+putRLP :: (RLPSerialize a) => a -> Put
+putRLP = put . asRLP
+
+getRLP :: (RLPSerialize a) => Get a
+getRLP = do x <- get
+            maybe (fail "RLP decode failed") return (fromRLP x)
 
 instance Serialize RLP where
     put (Group s) = putSequence (mapM_ put s)

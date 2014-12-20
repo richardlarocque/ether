@@ -17,6 +17,11 @@ import           Ethereum.Encoding.RLP
 
 data Address = A Word160 deriving (Show, Eq)
 
+instance RLPSerialize Address where
+    asRLP (A a) = scalarToRLP a
+    fromRLP (Item a) = Just $ (A . fromIntegral . decode160be) a
+    fromRLP _ = Nothing
+
 -- Addresses are 160 bits
 fromAddress :: Integral a => Address -> a
 fromAddress (A w) = fromIntegral w
