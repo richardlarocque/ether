@@ -39,35 +39,36 @@ data Block = Block {
 
 blockHeaderToRLPSnippet :: BlockHeader -> [RLP]
 blockHeaderToRLPSnippet b =
-    [asRLP $ parentHash b,
-     asRLP $ unclesHash b,
-     asRLP $ coinbase b,
-     asRLP $ stateRoot b,
+    [toRLP $ parentHash b,
+     toRLP $ unclesHash b,
+     toRLP $ coinbase b,
+     toRLP $ stateRoot b,
      ttToRLPHack $ transactionsTrie b,
-     asRLP $ difficulty b,
-     asRLP $ number b,
-     asRLP $ minGasPrice b,
-     asRLP $ gasLimit b,
-     asRLP $ gasUsed b,
-     asRLP $ timestamp b,
-     asRLP $ extraData b]
+     toRLP $ difficulty b,
+     toRLP $ number b,
+     toRLP $ minGasPrice b,
+     toRLP $ gasLimit b,
+     toRLP $ gasUsed b,
+     toRLP $ timestamp b,
+     toRLP $ extraData b]
 
 blockHeaderWithoutNonceToRLP :: BlockHeader -> RLP
 blockHeaderWithoutNonceToRLP = Group . blockHeaderToRLPSnippet
 
 blockHeaderToRLP :: BlockHeader -> RLP
 blockHeaderToRLP b =
-    Group $ blockHeaderToRLPSnippet b ++ [asRLP $ blockNonce b]
+    Group $ blockHeaderToRLPSnippet b ++ [toRLP $ blockNonce b]
 
 blockHeaderFromRLP :: RLP -> Maybe BlockHeader
 blockHeaderFromRLP (Group rs@[_, _, _, _, _, _, _, _, _, _, _, _, bn]) =
     do b <- blockHeaderFromRLPSnippet rs
        n <- fromRLP bn
        Just $ b{blockNonce=n}
+blockHeaderFromRLP _ = Nothing
 
 ttToRLPHack :: Word256 -> RLP
 ttToRLPHack 0 = Item B.empty
-ttToRLPHack x = asRLP x
+ttToRLPHack x = toRLP x
 
 blockHeaderFromRLPSnippet :: [RLP] -> Maybe BlockHeader
 blockHeaderFromRLPSnippet [ph, uh, cb, sr, tt, d, n, mg, gl, gu, ts, ed, _] =
@@ -89,7 +90,7 @@ blockHeaderFromRLPSnippet _ = Nothing
 
 receiptToRLP :: TransactionReceipt -> RLP
 receiptToRLP (TransactionReceipt t s gu) =
-    Group [asRLP t, asRLP s, asRLP gu]
+    Group [toRLP t, toRLP s, toRLP gu]
 
 receiptFromRLPSnippet :: RLP -> Maybe TransactionReceipt
 receiptFromRLPSnippet (Group [t, s, gu]) =
@@ -97,7 +98,7 @@ receiptFromRLPSnippet (Group [t, s, gu]) =
 receiptFromRLPSnippet _ = Nothing
 
 instance RLPSerialize Block where
-    asRLP (Block bh ts us) = Group [ blockHeaderToRLP bh,
+    toRLP (Block bh ts us) = Group [ blockHeaderToRLP bh,
                                      Group (map receiptToRLP ts),
                                      Group (map blockHeaderToRLP us) ]
     fromRLP (Group [bh, t, u]) =
@@ -108,6 +109,7 @@ instance RLPSerialize Block where
                where tsFromRLP (Group ts) = mapM receiptFromRLPSnippet ts
                      tsFromRLP _ = Nothing
                      usFromRLP (Group us) = mapM blockHeaderFromRLP us
+                     usFromRLP _ = Nothing
     fromRLP _ = Nothing
 
 -- Appendix I
@@ -129,75 +131,3 @@ genesisBlockHeader = BlockHeader {
         extraData = B.empty,
         blockNonce = 0
 }
-
--- putBlockHeader' :: BlockHeader -> Put
--- putBlockHeader' b =
---         do put256     $ parentHash b
---            put256     $ unclesHash b
---            putAddress $ coinbase b
---            put256     $ stateRoot b
---            put256     $ transactionsTrie b
---            putScalar  $ difficulty b
---            putScalar  $ number b
---            putScalar  $ minGasPrice b
---            putScalar  $ gasLimit b
---            putScalar  $ gasUsed b
---            putScalar  $ timestamp b
---            putArray   $ extraData b
---
--- putBlockHeader :: BlockHeader -> Put
--- putBlockHeader b = putSequence $
---                    do putBlockHeader' b
---                       put256 $ blockNonce b
---
--- putBlockHeaderWithoutNonce :: BlockHeader -> Put
--- putBlockHeaderWithoutNonce b = putSequence $ putBlockHeader' b
---
--- getBlockHeader :: Get BlockHeader
--- getBlockHeader = getSequence $
---         do ph   <- get256
---            uh   <- get256
---            cb   <- getAddress
---            sr   <- get256
---            tt   <- get256
---            d    <- getScalar
---            num  <- getScalar
---            mgp  <- getScalar
---            gl   <- getScalar
---            gu   <- getScalar
---            t    <- getScalar
---            ed   <- getArray
---            non  <- get256
---            return $ BlockHeader ph uh cb sr tt d num mgp gl gu t ed non
---
--- putTransactionReceipt :: TransactionReceipt -> Put
--- putTransactionReceipt (TransactionReceipt t s gu) = putSequence $
---         do putRLP t
---            put256 s
---            putScalar gu
---
--- getTransactionReceipt :: Get TransactionReceipt
--- getTransactionReceipt = getSequence $
---         do t <- getRLP
---            s <- get256
---            gu <- getScalar
---            return $ TransactionReceipt t s gu
---
--- putUncles :: [BlockHeader] -> Put
--- putUncles = putListAsSequence putBlockHeader
---
--- getUncles :: Get [BlockHeader]
--- getUncles = getListAsSequence getBlockHeader
---
--- putBlock :: Block -> Put
--- putBlock (Block bh ts us) = putSequence $
---         do putBlockHeader bh
---            putListAsSequence putTransactionReceipt ts
---            putUncles us
---
--- getBlock :: Get Block
--- getBlock = getSequence $
---         do bh <- getBlockHeader
---            ts <- getListAsSequence getTransactionReceipt
---            us <- getUncles
---            return $ Block bh ts us

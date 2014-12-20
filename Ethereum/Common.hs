@@ -3,11 +3,8 @@ module Ethereum.Common where
 import           Crypto.Hash
 import           Data.Bits
 import           Data.Byteable
-import qualified Data.ByteString      as B
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as B
 import           Data.LargeWord
-import           Data.List
-import           Data.Serialize
 import           Data.Word
 import           Data.Word.Odd
 
@@ -46,9 +43,6 @@ encode160be = toNByteBigEndian 20
 decode160be :: B.ByteString -> Word160
 decode160be = fromNByteBigEndian 20
 
-encodeScalar :: Integer -> B.ByteString
-encodeScalar = asBE
-
 hashAsWord :: B.ByteString -> Word256
 hashAsWord = decode256be . hashAsBytes
 
@@ -70,14 +64,6 @@ toLow = fromIntegral
 nibbleize :: [Word8] -> [Word4]
 nibbleize bs = map fromIntegral $ concatMap toNibbles bs
         where toNibbles b = [highNibble b, lowNibble b]
-
--- TODO: You can do better than this.  Use shifts.
-asBE :: Integral a => a -> B.ByteString
-asBE x | x < 0 = undefined
-asBE x = B.pack $ reverse $ unfoldr (\v ->
-        if v == 0
-           then Nothing
-           else Just (fromIntegral $ v `mod` 256, v `div` 256)) x
 
 ceilDiv :: (Integral a) => a -> a -> a
 ceilDiv x d = (x + d - 1) `div` d

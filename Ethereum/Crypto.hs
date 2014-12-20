@@ -8,15 +8,10 @@ import           Data.LargeWord
 import           Data.Maybe
 import           Data.Serialize
 import           Ethereum.Common
-import           Ethereum.Encoding.RLP
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
 
 data PrivateKey = Priv S.SecretKey
-
--- TODO: Don't use this helper ever.
-ignoreFailure :: Either a b -> b
-ignoreFailure (Right r) = r
 
 asPrivateKey :: Word256 -> Either String PrivateKey
 asPrivateKey = liftM Priv . S.initSecretKey . encode256be

@@ -114,11 +114,13 @@ deref tr =
                         s <- ask
                         let bs = fromMaybe (error "lookup failed") (load h s)
                         return $ case runGet get bs of
-                                   Left err -> error ("TreeHash runget Failed: " ++ show bs)
+                                   Left _ -> error ("TreeHash runget Failed: " ++ show bs)
                                    Right x -> x
-                Serialized s -> return $ case treeFromRLP s of
-                                            Nothing -> error ("Serialized runget Failed " ++ show s)
-                                            Just x -> x
+                Serialized s ->
+                    return $ fromMaybe
+                               (error $ "Unserialize failed: " ++ show s)
+                               (treeFromRLP s)
+
 
 -----
 

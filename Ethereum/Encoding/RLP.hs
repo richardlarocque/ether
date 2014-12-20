@@ -19,6 +19,7 @@ module Ethereum.Encoding.RLP where
 import           Control.Monad
 import qualified Data.ByteString as B
 import           Data.LargeWord
+import           Data.List
 import           Data.Serialize
 import           Data.Word
 import           Ethereum.Common
@@ -38,26 +39,31 @@ fromItem _        = error "Input RLP is not an item"
 
 -- | A class for types that can be serialized as RLP.
 class RLPSerialize a where
-    asRLP :: a -> RLP
+    toRLP :: a -> RLP
     fromRLP :: RLP -> Maybe a
 
 instance RLPSerialize Integer where
-    asRLP = Item . encodeScalar
+    toRLP = Item . encodeScalar
     fromRLP (Item i) = decodeScalar i
     fromRLP _ = Nothing
 
 instance RLPSerialize Word256 where
-    asRLP = Item . encode256be
+    toRLP = Item . encode256be
     fromRLP (Item i) = Just $ decode256be i
     fromRLP _ = Nothing
 
+instance RLPSerialize Word160 where
+    toRLP = Item . encode160be
+    fromRLP (Item i) = Just $ decode160be i
+    fromRLP _ = Nothing
+
 instance RLPSerialize B.ByteString where
-    asRLP = Item
+    toRLP = Item
     fromRLP (Item i) = Just i
     fromRLP _ = Nothing
 
 putRLP :: (RLPSerialize a) => a -> Put
-putRLP = put . asRLP
+putRLP = put . toRLP
 
 getRLP :: (RLPSerialize a) => Get a
 getRLP = do x <- get
@@ -91,8 +97,13 @@ instance Serialize RLP where
                              xs <- getSequenceElements
                              return (x:xs)
 
-scalarToRLP :: Integral a => a -> RLP
-scalarToRLP i = Item $ asBE i
+-- TODO: You can do better than this.  Use shifts.
+encodeScalar :: Integral a => a -> B.ByteString
+encodeScalar x | x < 0 = undefined
+encodeScalar x = B.pack $ reverse $ unfoldr (\v ->
+        if v == 0
+           then Nothing
+           else Just (fromIntegral $ v `mod` 256, v `div` 256)) x
 
 putArray ::  B.ByteString -> Put
 putArray bs = case bs of
@@ -101,8 +112,8 @@ putArray bs = case bs of
                 do putWord8 (fromIntegral $ 128 + B.length bs)
                    putByteString bs
         _ ->
-                do putWord8 (fromIntegral $ 183 + B.length (asBE $ B.length bs))
-                   putByteString (asBE $ B.length bs)
+                do putWord8 (fromIntegral $ 183 + B.length (encodeScalar $ B.length bs))
+                   putByteString (encodeScalar $ B.length bs)
                    putByteString bs
 
 getArray ::  Get B.ByteString
@@ -118,7 +129,7 @@ getArray =
 
 -- Put and get integr values as scalars.
 putScalar ::  Integer -> Put
-putScalar = putArray . asBE
+putScalar = putArray . encodeScalar
 
 getScalar ::  Get Integer
 getScalar = getArray >>= decodeScalar
@@ -137,8 +148,8 @@ putSequenceHeader :: Integral a => a -> Put
 putSequenceHeader len =
         if len < 56
            then putWord8 (fromIntegral $ 192 + len)
-           else do putWord8 (fromIntegral $ 247 + B.length (asBE len))
-                   putByteString (asBE len)
+           else do putWord8 (fromIntegral $ 247 + B.length (encodeScalar len))
+                   putByteString (encodeScalar len)
 
 putSequenceBytes :: B.ByteString -> Put
 putSequenceBytes lb =

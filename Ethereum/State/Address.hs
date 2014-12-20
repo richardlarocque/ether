@@ -18,7 +18,7 @@ import           Ethereum.Encoding.RLP
 data Address = A Word160 deriving (Show, Eq)
 
 instance RLPSerialize Address where
-    asRLP (A a) = scalarToRLP a
+    toRLP (A a) = toRLP a
     fromRLP (Item a) = Just $ (A . fromIntegral . decode160be) a
     fromRLP _ = Nothing
 
@@ -30,7 +30,7 @@ fromHash :: Word256 -> Address
 fromHash h = A $ fromIntegral $ fromIntegral (maxBound :: Word160) .&. h
 
 addressAsKey :: Address -> B.ByteString
-addressAsKey = asBE . (fromAddress :: Address -> Word160)
+addressAsKey = encodeScalar . (fromAddress :: Address -> Word160)
 
 putAddress :: Address -> Put
 putAddress = putScalar . fromAddress

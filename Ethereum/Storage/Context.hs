@@ -11,13 +11,7 @@ import           Ethereum.State.Address
 import           Ethereum.Storage.HashMap
 import           Ethereum.Storage.Trie    as T
 
-import           Debug.Trace
-
 data Context = Context MapStorage TreeRef
-
--- FIXME: Stop using this.
-ignoreFailure :: Either l r -> r
-ignoreFailure (Right r) = r
 
 initContext :: Context
 initContext = Context emptyMapStorage T.zeroRef
@@ -31,7 +25,9 @@ rootHash (Context _ _) = undefined
 
 getAccount :: Context -> Address -> Maybe Account
 getAccount c addr = do a <- lookupInTrie c (addressAsKey addr)
-                       return $ ignoreFailure $ decode a
+                       case decode a of
+                         Left _ -> Nothing
+                         Right x -> Just x
 
 updateAccount :: Context -> (Address, Account) -> Context
 updateAccount c (addr, acc) =
