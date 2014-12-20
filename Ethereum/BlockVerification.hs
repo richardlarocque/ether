@@ -26,7 +26,7 @@ isConsistent c b = checkNonce && checkUncles && checkReceipts && checkState
 
 receiptsToTrie :: [TransactionReceipt] -> Context
 receiptsToTrie rs =
-        let keys = map (runPut . putScalar) ([0..] :: [Integer])
+        let keys = map (runPut . put . toRLP) ([0..] :: [Integer])
             values = map (runPut . put . receiptToRLP) rs
             pairs = zip keys values
             c0 = initContext

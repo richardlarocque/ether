@@ -117,7 +117,7 @@ instance RLPSerialize Block where
 genesisBlockHeader :: BlockHeader
 genesisBlockHeader = BlockHeader {
         parentHash = 0,
-        unclesHash = hashAsWord $ runPut $ putSequenceBytes B.empty,
+        unclesHash = hashAsWord $ runPut $ put nullRLP,
         stateRoot = 0,
         coinbase = A 0,
         transactionsTrie = 0,

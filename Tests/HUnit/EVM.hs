@@ -5,7 +5,7 @@ import qualified Data.ByteString                   as B
 import           Data.ByteString.Builder
 import           Data.LargeWord
 import           Data.Monoid
-import           Data.Serialize.Put
+import           Data.Serialize
 import           Data.Word
 import           Test.Tasty
 import           Test.Tasty.HUnit
@@ -55,7 +55,7 @@ gasPriceValue = 1
 testBlockHeader :: BlockHeader
 testBlockHeader = BlockHeader {
         parentHash = 1234,
-        unclesHash = hashAsWord $ runPut $ putSequenceBytes B.empty,
+        unclesHash = hashAsWord $ runPut $ put $ Group [],
         coinbase = A 0xCBCB,
         stateRoot = rootHash testContext,
         transactionsTrie = rootHash initContext,

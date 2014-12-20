@@ -56,6 +56,10 @@ instance Ix Word4 where
 
 ----
 
+instance RLPSerialize TreeRef where
+    toRLP = treeRefToRLP
+    fromRLP = treeRefFromRLP
+
 treeRefToRLP :: TreeRef -> RLP
 treeRefToRLP (Serialized s) = s
 treeRefToRLP (TreeHash 0) = nullRLP  -- TODO: This ain't right.  Report bug about this.

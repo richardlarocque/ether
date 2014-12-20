@@ -24,6 +24,7 @@ module Ethereum.Encoding.RLP
      fromRLP,
      getRLP,
      putRLP,
+     encodeScalar
     )where
 
 import           Control.Monad

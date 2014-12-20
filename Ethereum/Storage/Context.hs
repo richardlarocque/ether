@@ -5,6 +5,7 @@ import qualified Data.ByteString          as B
 import           Data.LargeWord
 import           Data.Maybe
 import           Data.Serialize
+import           Ethereum.Encoding.RLP
 import           Ethereum.SimpleTypes
 import           Ethereum.State.Account
 import           Ethereum.State.Address
@@ -25,13 +26,13 @@ rootHash (Context _ _) = undefined
 
 getAccount :: Context -> Address -> Maybe Account
 getAccount c addr = do a <- lookupInTrie c (addressAsKey addr)
-                       case decode a of
+                       case runGet getRLP a of
                          Left _ -> Nothing
                          Right x -> Just x
 
 updateAccount :: Context -> (Address, Account) -> Context
 updateAccount c (addr, acc) =
-        insertToTrie c (addressAsKey addr, encode acc)
+        insertToTrie c (addressAsKey addr, runPut $ putRLP acc)
 
 modifyAccount :: Context -> Address -> (Account -> Account) -> Maybe Context
 modifyAccount c addr f = do acc <- getAccount c addr

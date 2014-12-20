@@ -1,13 +1,10 @@
 module Ethereum.State.Address(
         Address(..),
-        putAddress,
-        getAddress,
         fromAddress,
         addressAsKey,
         zeroAddress,
         generateAddress) where
 
-import           Control.Monad
 import           Data.Bits
 import           Data.ByteString       as B
 import           Data.LargeWord
@@ -30,14 +27,15 @@ fromAddress (A w) = fromIntegral w
 fromHash :: Word256 -> Address
 fromHash h = A $ fromIntegral $ fromIntegral (maxBound :: Word160) .&. h
 
+-- TODO: Is this necessary (encodeScalar, that is)
 addressAsKey :: Address -> B.ByteString
 addressAsKey = encodeScalar . (fromAddress :: Address -> Word160)
 
-putAddress :: Address -> Put
-putAddress = putScalar . fromAddress
-
-getAddress :: Get Address
-getAddress = liftM (A . fromIntegral) getScalar
+-- putAddress :: Address -> Put
+-- putAddress = putScalar . fromAddress
+--
+-- getAddress :: Get Address
+-- getAddress = liftM (A . fromIntegral) getScalar
 
 zeroAddress :: Address
 zeroAddress = A 0
@@ -48,8 +46,7 @@ zeroAddress = A 0
 -- | the nonce by 1.
 generateAddress :: Address -> Integer -> Address
 generateAddress a n = fromHash $ hashAsWord $
-                      runPut $ putSequence $
-                      do { putAddress a; putScalar n }
+                      runPut $ put (Group [ toRLP a, toRLP n ])
 
 encode160be :: Word160 -> B.ByteString
 encode160be = toNByteBigEndian 20
