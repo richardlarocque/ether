@@ -31,17 +31,11 @@ fromNByteBigEndian' n bytes =
         merged = foldl1 (.|.) posBytes
     in merged
 
-encode256be :: Word256 -> B.ByteString
-encode256be = toNByteBigEndian 32
-
 decode256be :: B.ByteString -> Word256
 decode256be = fromNByteBigEndian 32
 
-encode160be :: Word160 -> B.ByteString
-encode160be = toNByteBigEndian 20
-
-decode160be :: B.ByteString -> Word160
-decode160be = fromNByteBigEndian 20
+encode256be :: Word256 -> B.ByteString
+encode256be = toNByteBigEndian 32
 
 hashAsWord :: B.ByteString -> Word256
 hashAsWord = decode256be . hashAsBytes

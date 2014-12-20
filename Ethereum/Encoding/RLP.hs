@@ -52,11 +52,6 @@ instance RLPSerialize Word256 where
     fromRLP (Item i) = Just $ decode256be i
     fromRLP _ = Nothing
 
-instance RLPSerialize Word160 where
-    toRLP = Item . encode160be
-    fromRLP (Item i) = Just $ decode160be i
-    fromRLP _ = Nothing
-
 instance RLPSerialize B.ByteString where
     toRLP = Item
     fromRLP (Item i) = Just i
