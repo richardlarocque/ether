@@ -14,7 +14,17 @@ Portability :  non-portable (Unknown portability)
 See Ethereum Yellow Paper, Proof-of-Concept V, Appendix C
 -}
 
-module Ethereum.Encoding.RLP where
+module Ethereum.Encoding.RLP
+    (
+     RLP(..),
+     RLPSerialize,
+     isItem,
+     nullRLP,
+     toRLP,
+     fromRLP,
+     getRLP,
+     putRLP,
+    )where
 
 import           Control.Monad
 import qualified Data.ByteString as B
@@ -32,10 +42,6 @@ data RLP = Group [RLP]
 isItem :: RLP -> Bool
 isItem (Item _) = True
 isItem _        = False
-
-fromItem :: RLP -> B.ByteString
-fromItem (Item i) = i
-fromItem _        = error "Input RLP is not an item"
 
 -- | A class for types that can be serialized as RLP.
 class RLPSerialize a where

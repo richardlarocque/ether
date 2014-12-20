@@ -1,6 +1,5 @@
 module Tests.HUnit.HexPrefix(tests) where
 
-import           Data.Serialize
 import           Data.Word.Odd
 import           Ethereum.Encoding.HexPrefix
 import           Test.Tasty
@@ -8,10 +7,10 @@ import           Test.Tasty.HUnit
 
 hexRoundTripTest :: [Word4] -> Bool -> TestTree
 hexRoundTripTest ns b = testCase (show (ns, b)) $
-        do let enc = runPut $ putHexPrefixBytes ns b
-           case runGet (getHexPrefixBytes b) enc of
+        do let enc = asHexPrefix ns b
+           case unHexPrefix enc of
                    Left err -> assertFailure err
-                   Right ns' -> ns @=? ns'
+                   Right (HPArray ns' b') -> (ns,b) @=? (ns',b')
 
 -- TODO: These should be augmented with quickcheck tests.
 tests :: TestTree

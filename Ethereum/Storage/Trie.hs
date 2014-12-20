@@ -85,10 +85,14 @@ treeFromRLP (Group [Item hp, i]) =
             Just tr -> return $ Extension ns tr
       _ -> mzero
 
-treeFromRLP (Group ts) | length ts == 17 && isItem (ts !! 16) =
-    let (bs, [Item li]) = splitAt 16 ts
-        lv = if B.null li then Nothing else Just li
-    in do bv <- mapM treeRefFromRLP bs
+treeFromRLP (Group ts) | length ts == 17 =
+    let (bs, [li]) = splitAt 16 ts
+        readLastItem x = case x of
+                           it | it == nullRLP -> Nothing
+                           (Item iv) -> Just iv
+                           _ -> Nothing
+    in do let lv = readLastItem li
+          bv <- mapM treeRefFromRLP bs
           return $ Branch (listArray (0,15) bv) lv
 treeFromRLP _ = mzero
 
