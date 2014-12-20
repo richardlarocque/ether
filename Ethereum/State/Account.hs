@@ -53,30 +53,6 @@ instance RLPSerialize Account where
         return Account <*> fromRLP n <*> fromRLP b <*> fromRLP sr <*> fromRLP ch
     fromRLP _ = Nothing
 
--- instance Serialize CodeHash where
---         put (CodeHash h) = put256 h
---         put (NullCodeHash) = put256 (hashAsWord B.empty)
---
---         get = do h <- get256
---                  return $ if h == emptyHash
---                           then NullCodeHash
---                           else CodeHash h
---
--- instance Serialize Account where
---         put a = putSequence $
---                 do putScalar $ nonce a
---                    putScalar $ balance a
---                    put $ stateRoot a
---                    put $ codeHash a
---
---         get = do len <- getSequenceHeader
---                  isolate (fromIntegral len) $
---                          do n <- getScalar
---                             b <- getScalar
---                             s <- get :: Get TreeRef
---                             c <- get :: Get CodeHash
---                             return $ Account n b s c
-
 debit :: Account -> Integer -> Account
 debit a@(Account {balance=b}) i = a { balance = b - i }
 

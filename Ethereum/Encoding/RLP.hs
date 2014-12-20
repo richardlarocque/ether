@@ -24,10 +24,10 @@ module Ethereum.Encoding.RLP
      fromRLP,
      getRLP,
      putRLP,
-     encodeScalar
     )where
 
 import           Control.Monad
+import           Data.Bits
 import qualified Data.ByteString as B
 import           Data.LargeWord
 import           Data.List
@@ -99,13 +99,18 @@ instance Serialize RLP where
                              xs <- getSequenceElements
                              return (x:xs)
 
--- TODO: You can do better than this.  Use shifts.
-encodeScalar :: Integral a => a -> B.ByteString
-encodeScalar x | x < 0 = undefined
-encodeScalar x = B.pack $ reverse $ unfoldr (\v ->
-        if v == 0
-           then Nothing
-           else Just (fromIntegral $ v `mod` 256, v `div` 256)) x
+encodeScalar :: (Integral a, Bits a) => a -> B.ByteString
+encodeScalar i = B.pack $ reverse $
+                 map fromIntegral $
+                 unfoldr (\x -> if x == 0
+                                then Nothing
+                                else Just (x, x `shiftR` 8)) i
+
+decodeScalar :: MonadPlus m => B.ByteString -> m Integer
+decodeScalar bs | B.null bs = return 0
+decodeScalar bs =
+    when (B.head bs == 0) mzero
+    >> return (fromNByteBigEndian (B.length bs) bs)
 
 putArray ::  B.ByteString -> Put
 putArray bs = case bs of
@@ -118,35 +123,7 @@ putArray bs = case bs of
                    putByteString (encodeScalar $ B.length bs)
                    putByteString bs
 
-getArray ::  Get B.ByteString
-getArray =
-    do b <- getWord8
-       case b of
-         _ | b <  128 -> return $ B.singleton b
-         _ | b <= 183 -> getByteString (fromIntegral (b-128))
-         _ | b <= 192 ->
-               do ls <- getByteString (fromIntegral (b-183)) >>= decodeScalar
-                  getByteString $ fromIntegral ls
-         _            -> fail "Invalid non-sequence header"
-
--- Put and get integr values as scalars.
-putScalar ::  Integer -> Put
-putScalar = putArray . encodeScalar
-
-getScalar ::  Get Integer
-getScalar = getArray >>= decodeScalar
-
--- FIXME: THIS COMMENT IS WRONG... Put and get Word256 as 32-byte arrays.
-put256 :: Word256 -> Put
-put256 = putScalar . fromIntegral
-
-get256 ::  Get Word256
-get256 = liftM (fromIntegral . decode256be) getArray
-
-put256AsArray :: Word256 -> Put
-put256AsArray = putArray . encode256be
-
-putSequenceHeader :: Integral a => a -> Put
+putSequenceHeader :: Int -> Put
 putSequenceHeader len =
         if len < 56
            then putWord8 (fromIntegral $ 192 + len)
@@ -158,47 +135,8 @@ putSequenceBytes lb =
         do putSequenceHeader (B.length lb)
            putByteString lb
 
-putListAsSequence :: (a -> Put) -> [a] -> Put
-putListAsSequence p xs = putSequence $ mapM_ p xs
-
-getListAsSequence :: Get a -> Get [a]
-getListAsSequence g = do len <- getSequenceHeader
-                         isolate len (getListAsSequence' [])
-        where getListAsSequence' us = do done <- isEmpty
-                                         if done
-                                            then return (reverse us)
-                                            else do u <- g
-                                                    getListAsSequence' (u:us)
-
 putSequence ::  Put -> Put
 putSequence p1 = putSequenceBytes $ runPut p1
-
-getSequence :: Get a -> Get a
-getSequence g1 =
-        do l <- getSequenceHeader
-           isolate l g1
-
-getSequenceHeader ::  Get Int
-getSequenceHeader =
-        do b <- get :: Get Word8
-           case b of
-             x | x <= 192 -> fail "Invalid sequence header"
-             x | x <= 247 -> return $ fromIntegral b - 192
-             _            -> do ls <- getByteString (fromIntegral b - 247)
-                                len <- decodeScalar ls
-                                return $ fromIntegral len
-
-getSequenceBytes :: Get B.ByteString
-getSequenceBytes = getSequence $ getBytes =<< remaining
-
-getWord8s :: Integral a => a -> Get [Word8]
-getWord8s x = replicateM (fromIntegral x) get
-
-decodeScalar :: Monad m => B.ByteString -> m Integer
-decodeScalar bs = case bs of
-        _ | B.length bs == 0 -> return 0  -- FIXME: This shouln't be necessary
-        _ | B.head bs == 0 -> fail "Unexpected leading zero(es)"
-        _ -> return $ B.foldl' (\x y -> x * 256 + fromIntegral y) 0 bs
 
 nullRLP :: RLP
 nullRLP = Item B.empty

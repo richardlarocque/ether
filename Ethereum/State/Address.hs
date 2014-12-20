@@ -27,15 +27,9 @@ fromAddress (A w) = fromIntegral w
 fromHash :: Word256 -> Address
 fromHash h = A $ fromIntegral $ fromIntegral (maxBound :: Word160) .&. h
 
--- TODO: Is this necessary (encodeScalar, that is)
+-- TODO: Should this be a scalar, or Word160 serialization?
 addressAsKey :: Address -> B.ByteString
-addressAsKey = encodeScalar . (fromAddress :: Address -> Word160)
-
--- putAddress :: Address -> Put
--- putAddress = putScalar . fromAddress
---
--- getAddress :: Get Address
--- getAddress = liftM (A . fromIntegral) getScalar
+addressAsKey = runPut . putRLP
 
 zeroAddress :: Address
 zeroAddress = A 0
