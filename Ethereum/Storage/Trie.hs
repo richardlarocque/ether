@@ -34,6 +34,7 @@ import           Data.Maybe
 import           Data.Serialize
 import           Data.Word.Odd
 import           Ethereum.Common
+import           Ethereum.Crypto.Hash
 import           Ethereum.Encoding.HexPrefix
 import           Ethereum.Encoding.RLP
 import           Ethereum.Storage.HashMap
@@ -57,8 +58,8 @@ instance Ix Word4 where
 
 treeRefToRLP :: TreeRef -> RLP
 treeRefToRLP (Serialized s) = s
-treeRefToRLP (TreeHash 0) = Item B.empty  -- TODO: This ain't right.  Report bug about this.
-treeRefToRLP (TreeHash h) = Item $ encode256be h
+treeRefToRLP (TreeHash 0) = nullRLP  -- TODO: This ain't right.  Report bug about this.
+treeRefToRLP (TreeHash h) = toRLP h
 
 treeToRLP :: Tree -> RLP
 treeToRLP Empty = error "Can't directly serialize empty tree"

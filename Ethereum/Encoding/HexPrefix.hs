@@ -88,3 +88,19 @@ getHexPrefix' = do
         bs <- do r <- remaining
                  replicateM r getWord8
         return $ HPArray (prefix ++ nibbleize bs) ft
+
+nibbleize :: [Word8] -> [Word4]
+nibbleize bs = map fromIntegral $ concatMap toNibbles bs
+        where toNibbles b = [highNibble b, lowNibble b]
+
+lowNibble  :: Word8 -> Word4
+lowNibble x   = fromIntegral $ 0x0f .&. x
+
+highNibble :: Word8 -> Word4
+highNibble x  = fromIntegral $ x `shiftR` 4
+
+toHigh :: Word4 -> Word8
+toHigh = (16*).fromIntegral
+
+toLow :: Word4 -> Word8
+toLow = fromIntegral

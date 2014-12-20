@@ -66,8 +66,9 @@ blockHeaderFromRLP (Group rs@[_, _, _, _, _, _, _, _, _, _, _, _, bn]) =
        Just $ b{blockNonce=n}
 blockHeaderFromRLP _ = Nothing
 
+-- FIXME: The Interop tests won't work without this...
 ttToRLPHack :: Word256 -> RLP
-ttToRLPHack 0 = Item B.empty
+ttToRLPHack 0 = nullRLP
 ttToRLPHack x = toRLP x
 
 blockHeaderFromRLPSnippet :: [RLP] -> Maybe BlockHeader
