@@ -59,8 +59,14 @@ blockHeaderToRLP :: BlockHeader -> RLP
 blockHeaderToRLP b =
     Group $ blockHeaderToRLPSnippet b ++ [asRLP $ blockNonce b]
 
-blockHeaderFromRLPSnippet :: RLP -> Maybe BlockHeader
-blockHeaderFromRLPSnippet (Group [ph, uh, cb, sr, tt, d, n, mg, gl, gu, ts, ed]) =
+blockHeaderFromRLP :: RLP -> Maybe BlockHeader
+blockHeaderFromRLP (Group rs@[_, _, _, _, _, _, _, _, _, _, _, _, bn]) =
+    do b <- blockHeaderFromRLPSnippet rs
+       n <- fromRLP bn
+       Just $ b{blockNonce=n}
+
+blockHeaderFromRLPSnippet :: [RLP] -> Maybe BlockHeader
+blockHeaderFromRLPSnippet [ph, uh, cb, sr, tt, d, n, mg, gl, gu, ts, ed, _] =
     return BlockHeader
                <*> fromRLP ph
                <*> fromRLP uh
@@ -92,12 +98,12 @@ instance RLPSerialize Block where
                                      Group (map blockHeaderToRLP us) ]
     fromRLP (Group [bh, t, u]) =
         return Block
-                   <*> blockHeaderFromRLPSnippet bh
+                   <*> blockHeaderFromRLP bh
                    <*> tsFromRLP t
                    <*> usFromRLP u
                where tsFromRLP (Group ts) = mapM receiptFromRLPSnippet ts
                      tsFromRLP _ = Nothing
-                     usFromRLP (Group us) = mapM blockHeaderFromRLPSnippet us
+                     usFromRLP (Group us) = mapM blockHeaderFromRLP us
     fromRLP _ = Nothing
 
 -- Appendix I
