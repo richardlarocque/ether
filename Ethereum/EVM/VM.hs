@@ -21,7 +21,7 @@ import           Data.LargeWord
 import           Data.Maybe
 import           Data.Word
 
-import           Ethereum.Common
+import           Ethereum.Crypto.Hash
 import           Ethereum.EVM.ExecutionEnvironment
 import           Ethereum.EVM.InstructionSet       as E
 import           Ethereum.EVM.MachineState

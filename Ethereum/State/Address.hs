@@ -13,6 +13,7 @@ import           Data.ByteString       as B
 import           Data.LargeWord
 import           Data.Serialize
 import           Ethereum.Common
+import           Ethereum.Crypto.Hash
 import           Ethereum.Encoding.RLP
 
 data Address = A Word160 deriving (Show, Eq)

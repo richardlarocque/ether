@@ -2,7 +2,7 @@ module Tests.HUnit.Transaction(tests) where
 
 import qualified Data.ByteString                  as B
 import           Ethereum.Builders
-import           Ethereum.Crypto
+import           Ethereum.Crypto.Pubkey
 import           Ethereum.Encoding.RLP
 import           Ethereum.State.Account
 import           Ethereum.State.Address

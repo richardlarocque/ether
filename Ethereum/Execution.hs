@@ -3,8 +3,8 @@ module Ethereum.Execution where
 import           Control.Monad
 import           Data.ByteString                   as B
 import           Data.Maybe
-import           Ethereum.Common
-import           Ethereum.Crypto
+import           Ethereum.Crypto.Hash
+import           Ethereum.Crypto.Pubkey            (transactionSender)
 import           Ethereum.EVM.ExecutionEnvironment
 import           Ethereum.EVM.MachineState
 import           Ethereum.EVM.VM

@@ -5,7 +5,7 @@ import qualified Data.ByteString            as B
 import           Data.Maybe
 import           Data.Monoid
 import           Ethereum.Builders
-import           Ethereum.Crypto
+import           Ethereum.Crypto.Pubkey
 import           Ethereum.Execution
 import           Ethereum.Lang.Ops          as L
 import           Ethereum.SimpleTypes

@@ -7,7 +7,8 @@ import qualified Data.ByteString          as B
 import           Data.LargeWord
 import           Data.Serialize
 import           Ethereum.Common
-import           Ethereum.Crypto
+import           Ethereum.Crypto.Hash
+import           Ethereum.Crypto.Pubkey
 import           Ethereum.Encoding.RLP
 import           Ethereum.Execution
 import           Ethereum.State.Block

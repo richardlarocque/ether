@@ -10,7 +10,7 @@ import           Data.Word
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
-import           Ethereum.Common
+import           Ethereum.Crypto.Hash
 import           Ethereum.Encoding.RLP
 import           Ethereum.EVM.ExecutionEnvironment
 import           Ethereum.EVM.InstructionSet       as E

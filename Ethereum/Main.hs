@@ -1,12 +1,12 @@
 module Ethereum.Main where
 
-import Crypto.Random
-import Ethereum.Crypto
-import Ethereum.State.Transaction as T
-import Ethereum.State.Account as A
-import Ethereum.Storage.Context
+import           Crypto.Random
+import           Ethereum.Crypto.Pubkey
+import           Ethereum.State.Account     as A
+import           Ethereum.State.Transaction as T
+import           Ethereum.Storage.Context
 
-import qualified Data.ByteString as B
+import qualified Data.ByteString            as B
 
 main :: IO ()
 main = do
@@ -18,7 +18,7 @@ main = do
         let pr = makePrivateAccount 1234
         let addr = addressFromPriv pr
         let acc = Account 0 90000 nullStateRoot NullCodeHash
-        let c1 = updateAccount c0 (addr, acc) 
+        let c1 = updateAccount c0 (addr, acc)
 
         let cc1 = initContractCreation cprg pr (A.nonce acc) 10 1 1000 B.empty
 

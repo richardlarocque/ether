@@ -1,7 +1,7 @@
 module Ethereum.TransactionVerification where
 
 import qualified Data.ByteString            as B
-import           Ethereum.Crypto
+import           Ethereum.Crypto.Pubkey
 import qualified Ethereum.FeeSchedule       as F
 import qualified Ethereum.State.Account     as A
 import           Ethereum.State.Transaction

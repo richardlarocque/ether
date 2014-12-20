@@ -2,7 +2,7 @@ module Tests.HUnit.Block(tests) where
 
 import           Data.ByteString        as B
 import           Ethereum.Builders
-import           Ethereum.Crypto
+import           Ethereum.Crypto.Pubkey
 import           Ethereum.Encoding.RLP
 import           Ethereum.State.Address
 import           Ethereum.State.Block

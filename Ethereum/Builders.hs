@@ -1,7 +1,7 @@
 module Ethereum.Builders where
 
 import qualified Data.ByteString            as B
-import           Ethereum.Crypto
+import           Ethereum.Crypto.Pubkey
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
 

@@ -4,7 +4,7 @@ import           Control.Applicative
 import qualified Data.ByteString            as B
 import           Data.LargeWord
 import           Data.Serialize
-import           Ethereum.Common
+import           Ethereum.Crypto.Hash
 import           Ethereum.Encoding.RLP
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction

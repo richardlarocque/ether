@@ -74,7 +74,6 @@ treeRefFromRLP :: RLP -> Maybe TreeRef
 treeRefFromRLP (Item bs) | B.length bs > 32 = mzero
 treeRefFromRLP (Item bs) = return $ TreeHash $ decode256be bs
 treeRefFromRLP s@(Group _) = return $ Serialized s
-treeRefFromRLP _ = mzero
 
 treeFromRLP :: RLP -> Maybe Tree
 treeFromRLP (Group [Item hp, i]) =

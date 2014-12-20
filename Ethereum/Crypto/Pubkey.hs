@@ -1,4 +1,4 @@
-module Ethereum.Crypto where
+module Ethereum.Crypto.Pubkey where
 
 import           Control.Monad
 import           Crypto.Secp256k1           as S
@@ -8,6 +8,7 @@ import           Data.LargeWord
 import           Data.Maybe
 import           Data.Serialize
 import           Ethereum.Common
+import           Ethereum.Crypto.Hash
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
 
@@ -65,9 +66,3 @@ signTransaction (Priv pr) t =
        let (rBytes, sBytes) = B.splitAt 32 cSigBytes
        let (r, s) = (fromNByteBigEndian 32 rBytes, fromNByteBigEndian 32 sBytes)
        return (fromIntegral rId, r, s)
-
-hashAsWord :: B.ByteString -> Word256
-hashAsWord = decode256be . hashAsBytes
-
-hashAsBytes :: B.ByteString -> B.ByteString
-hashAsBytes bs = toBytes (hash bs :: Digest SHA3_256)

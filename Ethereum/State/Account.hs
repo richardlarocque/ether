@@ -16,7 +16,7 @@ module Ethereum.State.Account where
 import qualified Data.ByteString       as B
 import           Data.LargeWord
 import           Data.Serialize
-import           Ethereum.Common
+import           Ethereum.Crypto.Hash
 import           Ethereum.Encoding.RLP
 import           Ethereum.Storage.Trie
 

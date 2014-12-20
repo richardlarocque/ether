@@ -37,6 +37,8 @@ Library
   exposed-modules:
       Ethereum.Builders
       Ethereum.Common
+      Ethereum.Crypto.Hash
+      Ethereum.Crypto.Pubkey
       Ethereum.EVM.ExecutionEnvironment
       Ethereum.EVM.InstructionSet
       Ethereum.EVM.MachineState
