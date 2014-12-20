@@ -71,7 +71,7 @@ instance Serialize RLP where
                _ | b <  128 -> return $ Item $ B.singleton b
                _ | b <= 183 ->
                     liftM Item $ getByteString $ fromIntegral (b - 128)
-               x | x <= 192 ->
+               x | x <  192 ->
                     do yb <- getByteString $ fromIntegral (x - 183)
                        zl <- liftM fromIntegral $ decodeScalar yb
                        liftM Item $ getByteString zl
