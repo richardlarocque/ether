@@ -43,7 +43,7 @@ blockHeaderToRLPSnippet b =
      asRLP $ unclesHash b,
      asRLP $ coinbase b,
      asRLP $ stateRoot b,
-     asRLP $ transactionsTrie b,
+     ttToRLPHack $ transactionsTrie b,
      asRLP $ difficulty b,
      asRLP $ number b,
      asRLP $ minGasPrice b,
@@ -65,6 +65,10 @@ blockHeaderFromRLP (Group rs@[_, _, _, _, _, _, _, _, _, _, _, _, bn]) =
        n <- fromRLP bn
        Just $ b{blockNonce=n}
 
+ttToRLPHack :: Word256 -> RLP
+ttToRLPHack 0 = Item B.empty
+ttToRLPHack x = asRLP x
+
 blockHeaderFromRLPSnippet :: [RLP] -> Maybe BlockHeader
 blockHeaderFromRLPSnippet [ph, uh, cb, sr, tt, d, n, mg, gl, gu, ts, ed, _] =
     return BlockHeader
@@ -78,9 +82,9 @@ blockHeaderFromRLPSnippet [ph, uh, cb, sr, tt, d, n, mg, gl, gu, ts, ed, _] =
                <*> fromRLP mg
                <*> fromRLP gl
                <*> fromRLP gu
-               <*> fromRLP gu
                <*> fromRLP ts
                <*> fromRLP ed
+               <*> return 0
 blockHeaderFromRLPSnippet _ = Nothing
 
 receiptToRLP :: TransactionReceipt -> RLP
