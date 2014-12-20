@@ -56,6 +56,10 @@ instance Ix Word4 where
 
 ----
 
+instance RLPSerialize Tree where
+    toRLP = treeToRLP
+    fromRLP = treeFromRLP
+
 instance RLPSerialize TreeRef where
     toRLP = treeRefToRLP
     fromRLP = treeRefFromRLP
@@ -100,16 +104,9 @@ treeFromRLP (Group ts) | length ts == 17 =
           return $ Branch (listArray (0,15) bv) lv
 treeFromRLP _ = mzero
 
-instance Serialize Tree where
-    put = put . treeToRLP
-    get = get >>= \x -> maybe mzero return (treeFromRLP x)
-instance Serialize TreeRef where
-    put = put . treeRefToRLP
-    get = get >>= \x -> maybe mzero return (treeRefFromRLP x)
-
 tref :: Tree -> TreeRef
 tref Empty = TreeHash 0
-tref t     = let serialized = encode t
+tref t     = let serialized = runPut $ putRLP t
                   in if B.length serialized < 32
                         then Serialized $ treeToRLP t
                         else TreeHash $ hashAsWord serialized
@@ -121,7 +118,7 @@ deref tr =
                 TreeHash h -> do
                         s <- ask
                         let bs = fromMaybe (error "lookup failed") (load h s)
-                        return $ case runGet get bs of
+                        return $ case runGet getRLP bs of
                                    Left _ -> error ("TreeHash runget Failed: " ++ show bs)
                                    Right x -> x
                 Serialized s ->
@@ -152,7 +149,7 @@ lookup tr k = do t <- deref tr
 storeTree :: MapStorage -> Tree -> MapStorage
 storeTree s t = case tref t of
         TreeHash 0 -> s
-        TreeHash k -> store k (encode t) s
+        TreeHash k -> store k ((runPut . put . toRLP) t) s
         _ -> s
 
 -- Helpers
@@ -212,7 +209,7 @@ treeInsert (Extension ek tr) (ik, iv) =
                         let e1 = Extension (tail esuf) tr
                         let b1 = emptyBranch `updateBranchSubTree` (head esuf, e1)
                         (b2, ts) <- b1 `treeInsert` (isuf, iv)
-                        return $ tryPrependPrefix cp $ (b2, [b2,e1] ++ ts)
+                        return $ tryPrependPrefix cp (b2, [b2,e1] ++ ts)
 
 -- Branches
 treeInsert (Branch ts _) (ks, v) | null ks =
