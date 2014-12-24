@@ -32,6 +32,7 @@ import           Data.LargeWord
 import qualified Data.List                   as DL
 import           Data.Maybe
 import           Data.Serialize
+import           Data.Word
 import           Ethereum.Common
 import           Ethereum.Crypto.Hash
 import           Ethereum.Encoding.HexPrefix

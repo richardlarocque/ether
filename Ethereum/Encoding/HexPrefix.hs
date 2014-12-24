@@ -47,7 +47,7 @@ putHexPrefixBytes ns b = do
                 else (16 * (ft + 1) + (fromIntegral.head) ns, tail ns)
         put b0
         mapM_ putWord8 (pairBytes rest)
-        where pairBytes :: [Word4] -> [Word8]
+        where pairBytes :: [Word8] -> [Word8]
               pairBytes (n1:n2:rest) = makeByte n1 n2 : pairBytes rest
               pairBytes [] = []
               pairBytes [_] = error "Unexpected unpair input"
@@ -76,7 +76,7 @@ highNibble :: Word8 -> Word8
 highNibble x  = fromIntegral $ x `shiftR` 4
 
 toHigh :: Word8 -> Word8
-toHigh = `shiftL` 4
+toHigh = (`shiftL` 4)
 
 toLow :: Word8 -> Word8
-toLow = fromIntegral . (shiftR 4)
+toLow = fromIntegral . (`shiftR` 4)

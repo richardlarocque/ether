@@ -414,7 +414,7 @@ withSign f a b = let (aNeg, a') = unsign a
                     where unsign x = if isNeg x
                                         then (True, neg x)
                                         else (False, x)
-                          resign s1 s2 x = if s1 `xor` s2 then neg x else x
+                          resign s1 s2 x = if s1 /= s2 then neg x else x
 
 extractByte :: (Integral b) => Word256 -> Int -> b
 extractByte b i = fromIntegral $ (b .&. (0xff `shiftL` i)) `shiftR` i

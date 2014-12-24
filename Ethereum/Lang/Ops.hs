@@ -1,13 +1,16 @@
 module Ethereum.Lang.Ops where
 
 import qualified Data.ByteString             as B
-import           Data.ByteString.Builder
+--import           Data.ByteString.Builder
 import qualified Data.ByteString.Lazy        as L
+import qualified Data.ByteString.Lazy.Builder        as L
 import           Data.LargeWord
 import           Data.Monoid
 import           Data.Word
 import           Ethereum.Common
 import           Ethereum.EVM.InstructionSet
+
+type Builder = L.Builder
 
 type TriOp = Builder -> Builder -> Builder -> Builder
 type BinOp = Builder -> Builder -> Builder
@@ -15,12 +18,12 @@ type UnOp = Builder -> Builder
 type ZeroOp = Builder
 
 compile :: Builder -> B.ByteString
-compile = L.toStrict . toLazyByteString
+compile = L.toStrict . L.toLazyByteString
 
 --
 
 word256BE :: Word256 -> Builder
-word256BE = byteString . encode256be
+word256BE = L.byteString . encode256be
 
 p32 :: Word256 -> Builder
 p32 x = let x' = fromIntegral x :: Word256
@@ -30,13 +33,13 @@ p32i :: Integral a => a -> Builder
 p32i = p32.fromIntegral
 
 p1 :: Word8 -> Builder
-p1 x = op PUSH1 <> word8 x
+p1 x = op PUSH1 <> L.word8 x
 
 op :: Instruction -> Builder
-op o = word8 (toOpcode o)
+op o = L.word8 (toOpcode o)
 
 asOp :: Word8 -> Builder
-asOp = word8
+asOp = L.word8
 
 unOp :: Instruction -> Builder -> Builder
 unOp i a = a <> op i
@@ -87,4 +90,4 @@ memLiteral memOffset literal =
             jmpAddrArg = add pc (p32i (len + 3))
         in codecopy memAddrArg codeAddrArg lenArg
            <> unOp JUMP jmpAddrArg
-           <> byteString literal
+           <> L.byteString literal
