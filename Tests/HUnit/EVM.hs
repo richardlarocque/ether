@@ -2,7 +2,6 @@ module Tests.HUnit.EVM(tests) where
 
 import           Data.Bits
 import qualified Data.ByteString                   as B
-import           Data.ByteString.Builder
 import           Data.LargeWord
 import           Data.Monoid
 import           Data.Serialize

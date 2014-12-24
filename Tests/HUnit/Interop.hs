@@ -1,16 +1,13 @@
 module Tests.HUnit.Interop(tests) where
 
-import           Control.Monad
-import qualified Data.ByteString            as B
-import           Data.Serialize
-import           Ethereum.Encoding.RLP
-import           Ethereum.State.Block
 import           Test.Tasty
-import           Test.Tasty.HUnit
-import           Tests.TestData             as D
+-- import           Tests.TestData             as D
 
-import           Ethereum.BlockVerification
 
+tests :: TestTree
+tests = testGroup "Interop" []
+
+  {-
 singleBlockTest :: String -> ((B.ByteString, Either String Block) -> Assertion) -> TestTree
 singleBlockTest name test = testGroup name $ map f (zip ([1..]::[Integer]) D.blocks)
     where f (n, b) = testCase ("Block " ++ show n) (test (b, runGet getRLP b))
@@ -40,3 +37,5 @@ tests = testGroup "Interop" [
               singleBlockTest' "Receipts" isReceiptHashValid,
               singleBlockTest' "TransactionSignatures" areSignaturesValid
         ]
+
+-}

@@ -1,11 +1,12 @@
 module Tests.HUnit.HexPrefix(tests) where
 
-import           Data.Word.Odd
+--import           Data.Word.Odd
+import           Data.Word
 import           Ethereum.Encoding.HexPrefix
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
-hexRoundTripTest :: [Word4] -> Bool -> TestTree
+hexRoundTripTest :: [Word8] -> Bool -> TestTree
 hexRoundTripTest ns b = testCase (show (ns, b)) $
         do let enc = asHexPrefix ns b
            case unHexPrefix enc of

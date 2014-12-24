@@ -99,8 +99,8 @@ Test-suite ether_tests
       Tests.Upstream
       Tests.Upstream.Common,
       Tests.Upstream.Trie,
-      Tests.Helpers,
-      Tests.TestData
+      Tests.Helpers
+      --Tests.TestData
 
   build-depends:
       ether,

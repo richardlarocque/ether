@@ -1,23 +1,21 @@
 module Ethereum.Crypto.Pubkey(
+  privateToAddress,
+  asPrivateKey,
   isSignatureValid,
   transactionSender,
   signTransaction,
   PrivateKey
   ) where
 
-import           Control.Monad
 -- import           Crypto.Secp256k1           as S
 import           Data.Bits
 import qualified Data.ByteString            as B
 import           Data.LargeWord
 import           Data.Maybe
 import           Data.Serialize
-import           Ethereum.Common
 import           Ethereum.Crypto.Hash
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
-
-import Data.Serialize
 
 --data PrivateKey = Priv S.SecretKey
 data PrivateKey = FakePrivKey
