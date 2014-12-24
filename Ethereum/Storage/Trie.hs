@@ -32,7 +32,6 @@ import           Data.LargeWord
 import qualified Data.List                   as DL
 import           Data.Maybe
 import           Data.Serialize
-import           Data.Word.Odd
 import           Ethereum.Common
 import           Ethereum.Crypto.Hash
 import           Ethereum.Encoding.HexPrefix
@@ -40,19 +39,14 @@ import           Ethereum.Encoding.RLP
 import           Ethereum.Storage.HashMap
 
 data Tree = Empty
-          | Leaf [Word4] B.ByteString
-          | Extension [Word4] TreeRef
-          | Branch (Array Word4 TreeRef) (Maybe B.ByteString)
+          | Leaf [Word8] B.ByteString
+          | Extension [Word8] TreeRef
+          | Branch (Array Word8 TreeRef) (Maybe B.ByteString)
           deriving (Show, Eq)
 
 data TreeRef = Serialized RLP
              | TreeHash Word256
              deriving (Show, Eq)
-
-instance Ix Word4 where
-        range (a,b) = [a..b]
-        index (a,_) i = fromIntegral $ i - a
-        inRange (l,u) i = l <= i && i <= u
 
 ----
 
@@ -154,7 +148,7 @@ storeTree s t = case tref t of
 
 -- Helpers
 
-lookup' :: [Word4] -> Tree -> Reader MapStorage (Maybe B.ByteString)
+lookup' :: [Word8] -> Tree -> Reader MapStorage (Maybe B.ByteString)
 lookup' ns tree = case tree of
         Empty                   -> return Nothing
 
@@ -174,7 +168,7 @@ lookup' ns tree = case tree of
 -----------------------------------
 -- TODO: Figure out this tangled mess...
 
-treeInsert :: Tree -> ([Word4], B.ByteString) -> Reader MapStorage (Tree, [Tree])
+treeInsert :: Tree -> ([Word8], B.ByteString) -> Reader MapStorage (Tree, [Tree])
 
 -- Empty
 treeInsert Empty (ik, iv) =
@@ -224,7 +218,7 @@ treeInsert b@(Branch ts _) (ks, v) = do
 -- Helper functions
 
 -- | Prepend an extension branch if it makes sense to do so.
-tryPrependPrefix :: [Word4] -> (Tree, [Tree]) -> (Tree, [Tree])
+tryPrependPrefix :: [Word8] -> (Tree, [Tree]) -> (Tree, [Tree])
 tryPrependPrefix ks x | null ks = x
 tryPrependPrefix ks (r, ns) = let e = Extension ks (tref r) in (e, e:ns)
 
@@ -237,7 +231,7 @@ commonPrefix (x:xs) (y:ys)
     | otherwise = ([], x:xs, y:ys)
 
 -- | Inserts a subtree into a branch node.
-updateBranchSubTree :: Tree -> (Word4, Tree) -> Tree
+updateBranchSubTree :: Tree -> (Word8, Tree) -> Tree
 updateBranchSubTree (Branch arr mi) (k, t) =
         let arr' = arr // [(k, tref t)]
         in Branch arr' mi

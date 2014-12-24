@@ -1,7 +1,7 @@
-module Ethereum.Crypto.Pubkey where
+module Ethereum.Crypto.Pubkey() where
 
 import           Control.Monad
-import           Crypto.Secp256k1           as S
+-- import           Crypto.Secp256k1           as S
 import           Data.Bits
 import qualified Data.ByteString            as B
 import           Data.LargeWord
@@ -14,6 +14,12 @@ import           Ethereum.State.Transaction
 
 data PrivateKey = Priv S.SecretKey
 
+data CompressedPublicKey = FakePubKey
+
+instance Serializable CompressedPublicKey where
+  put = return B.replicate 32 0
+  get = return FakePubKey
+
 asPrivateKey :: Word256 -> Either String PrivateKey
 asPrivateKey = liftM Priv . S.initSecretKey . encode256be
 
@@ -21,7 +27,7 @@ privateToAddress :: PrivateKey -> Address
 privateToAddress (Priv priv) =
     pubkeyToAddress $ fromJust $ S.createPublicKeyC priv
 
-pubkeyToAddress :: S.CompressedPublicKey -> Address
+pubkeyToAddress :: CompressedPublicKey -> Address
 pubkeyToAddress pub =
     A $ fromIntegral $ (mask .&.) $ hashAsWord $ runPut $ put pub
     where mask = (1 `shiftL` 20) - 1

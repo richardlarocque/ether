@@ -24,12 +24,13 @@ import           Data.Bits
 import qualified Data.ByteString as B
 import           Data.Serialize
 import           Data.Word
-import           Data.Word.Odd
 
-data HPArray = HPArray [Word4] Bool
+-- import           Data.Word.Odd
+
+data HPArray = HPArray [Word8] Bool
         deriving (Show,Eq)
 
-asHexPrefix :: [Word4] -> Bool -> B.ByteString
+asHexPrefix :: [Word8] -> Bool -> B.ByteString
 asHexPrefix ns b = runPut $ putHexPrefixBytes ns b
 
 unHexPrefix :: B.ByteString -> Either String HPArray
@@ -37,7 +38,7 @@ unHexPrefix = runGet $ do
   len <- remaining
   isolate (fromIntegral len) getHexPrefix
 
-putHexPrefixBytes :: [Word4] -> Bool -> Put
+putHexPrefixBytes :: [Word8] -> Bool -> Put
 putHexPrefixBytes ns b = do
         let ft = if b then 2 else 0 :: Word8
         let (b0, rest) =
@@ -64,18 +65,18 @@ getHexPrefix = do
                  replicateM r getWord8
         return $ HPArray (prefix ++ nibbleize bs) ft
 
-nibbleize :: [Word8] -> [Word4]
+nibbleize :: [Word8] -> [Word8]
 nibbleize bs = map fromIntegral $ concatMap toNibbles bs
         where toNibbles b = [highNibble b, lowNibble b]
 
-lowNibble  :: Word8 -> Word4
+lowNibble  :: Word8 -> Word8
 lowNibble x   = fromIntegral $ 0x0f .&. x
 
-highNibble :: Word8 -> Word4
+highNibble :: Word8 -> Word8
 highNibble x  = fromIntegral $ x `shiftR` 4
 
-toHigh :: Word4 -> Word8
-toHigh = (16*).fromIntegral
+toHigh :: Word8 -> Word8
+toHigh = `shiftL` 4
 
-toLow :: Word4 -> Word8
-toLow = fromIntegral
+toLow :: Word8 -> Word8
+toLow = fromIntegral . (shiftR 4)
