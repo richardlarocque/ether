@@ -3,7 +3,9 @@ let
   inherit (haskellPackages) cabal cabalInstall_1_18_0_3
     largeword vector cryptohash
     cryptoRandom cryptoPubkey byteable
-    cereal mtl dataLens;
+    cereal mtl dataLens
+    tasty tastyHunit tastyQuickcheck
+    json;
 
     # array containers bytestring OddWord
 
@@ -16,6 +18,8 @@ in cabal.mkDerivation (self: {
     largeword vector cryptohash
     cryptoRandom cryptoPubkey byteable
     cereal mtl dataLens
+    tasty tastyHunit tastyQuickcheck
+    json
   ];
   buildTools = [ cabalInstall_1_18_0_3 ];
   enableSplitObjs = false;
