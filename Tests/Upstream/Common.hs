@@ -5,10 +5,12 @@ import qualified Data.ByteString       as B
 import qualified Data.ByteString.Char8 as BC8
 import           Data.Either
 import           Data.List
+import           Data.Word
 import           Numeric
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Text.JSON
+import Data.Ratio
 
 testDataRoot :: String
 testDataRoot = "eth_tests/"
@@ -81,3 +83,18 @@ parseHex hexStr =
                 _ -> [Nothing]
           readHexByte [] = []
           readHexByte _  = [Nothing]
+
+mapJSArray :: (JSValue -> Maybe a) -> JSValue -> Maybe [a]
+mapJSArray f (JSArray vs) = mapM f vs
+mapJSArray _ _ = Nothing
+
+parseByteSequence :: JSValue -> Maybe [Word8]
+parseByteSequence = mapJSArray (liftM fromIntegral . parseInteger)
+
+parseInteger :: JSValue -> Maybe Integer
+parseInteger (JSRational _ x) | denominator x == 1 = Just $ numerator x
+parseInteger _ = Nothing
+
+parseBool :: JSValue -> Maybe Bool
+parseBool (JSBool b) = Just b
+parseBool _ = Nothing

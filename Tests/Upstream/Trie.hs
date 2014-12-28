@@ -13,14 +13,8 @@ import           Text.JSON
 testPath :: String
 testPath = "TrieTests/"
 
-testFiles :: [String]
-testFiles = [ "trietest.json", "trieanyorder.json" ]
-
 mkPath :: String -> String
 mkPath = (++) (testDataRoot ++ testPath)
-
-testPaths :: [String]
-testPaths = map (\x -> testDataRoot ++ testPath ++ x) testFiles
 
 tests :: IO (Either String TestTree)
 tests = liftM (groupDataTests "Trie") $ sequence [
