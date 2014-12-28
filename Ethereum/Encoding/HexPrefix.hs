@@ -70,13 +70,13 @@ nibbleize bs = map fromIntegral $ concatMap toNibbles bs
         where toNibbles b = [highNibble b, lowNibble b]
 
 lowNibble  :: Word8 -> Word8
-lowNibble x   = fromIntegral $ 0x0f .&. x
+lowNibble x   = 0x0f .&. x
 
 highNibble :: Word8 -> Word8
-highNibble x  = fromIntegral $ x `shiftR` 4
+highNibble x  = x `shiftR` 4
 
 toHigh :: Word8 -> Word8
 toHigh = (`shiftL` 4)
 
 toLow :: Word8 -> Word8
-toLow = fromIntegral . (`shiftR` 4)
+toLow = (0x0f .&. )
