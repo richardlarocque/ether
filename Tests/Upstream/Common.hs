@@ -74,6 +74,10 @@ parseBytes str =
       Just x -> parseHex x
       Nothing -> Just $ BC8.pack str
 
+parseHexString :: JSValue -> Maybe B.ByteString
+parseHexString (JSString s) = parseHex $ fromJSString s
+parseHexString _ = Nothing
+
 parseHex :: String -> Maybe B.ByteString
 parseHex hexStr =
     liftM B.pack $ sequence $ readHexByte hexStr

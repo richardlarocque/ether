@@ -99,6 +99,8 @@ Test-suite ether_tests
       Tests.Upstream
       Tests.Upstream.Common,
       Tests.Upstream.Trie,
+      Tests.Upstream.HexEncode,
+      Tests.Upstream.RLP,
       Tests.Helpers
       --Tests.TestData
 
