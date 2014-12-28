@@ -1,14 +1,14 @@
 module Tests.Upstream.RLP(tests) where
 
-import Tests.Upstream.Common
-import Test.Tasty
-import Test.Tasty.HUnit
-import Control.Monad
-import Text.JSON
-import Ethereum.Encoding.RLP
-import Data.Char
+import           Control.Monad
 import qualified Data.ByteString as B
-import Data.Serialize
+import           Data.Char
+import           Data.Serialize
+import           Ethereum.Encoding.RLP
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import           Tests.Upstream.Common
+import           Text.JSON
 
 testPath :: String
 testPath = "BasicTests/"
@@ -30,6 +30,9 @@ parseRLPTest val =
      return (in', out')
 
 parseRLPValue :: JSValue -> Maybe RLP
+parseRLPValue (JSString s)
+  | (not $ null $ fromJSString s) && (head $ fromJSString s) == '#' =
+      return $ toRLP $ (read :: String -> Integer) $ tail $ fromJSString s
 parseRLPValue (JSString s) =
   return $ toRLP $ B.pack $ map (fromIntegral . ord) $ fromJSString s
 parseRLPValue r@(JSRational _ _) =
