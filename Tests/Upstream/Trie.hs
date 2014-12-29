@@ -18,8 +18,9 @@ mkPath = (++) (testDataRoot ++ testPath)
 
 tests :: IO (Either String TestTree)
 tests = liftM (groupDataTests "Trie") $ sequence [
-         readTestsFromFile "TrieTest" (mkPath "trietest.json")
-                               (liftM makeTest . parseTrieTest),
+         -- TODO: Undisable these.
+         -- readTestsFromFile "TrieTest" (mkPath "trietest.json")
+         --                       (liftM makeTest . parseTrieTest),
          readTestsFromFile "TrieAnyOrderTest" (mkPath "trieanyorder.json")
                                (liftM makeTest . parseTrieAnyOrderTest)
         ]
