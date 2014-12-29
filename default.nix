@@ -1,6 +1,6 @@
 { haskellPackages ? (import <nixpkgs> {}).haskellPackages }:
 let
-  inherit (haskellPackages) cabal cabalInstall_1_18_0_3
+  inherit (haskellPackages) cabal cabalInstall
     largeword vector cryptohash
     cryptoRandom cryptoPubkey byteable
     cereal mtl dataLens
@@ -21,6 +21,6 @@ in cabal.mkDerivation (self: {
     tasty tastyHunit tastyQuickcheck
     json
   ];
-  buildTools = [ cabalInstall_1_18_0_3 ];
+  buildTools = [ cabalInstall ];
   enableSplitObjs = false;
 })
