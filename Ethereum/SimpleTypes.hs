@@ -10,10 +10,6 @@ Portability :  non-portable (Unknown portability)
 -}
 
 module Ethereum.SimpleTypes (
-        Gas,
-        Stack,
-        Ether,
-        fromEther,
         brange,
         safeBrange,
         bbyte,
@@ -31,12 +27,6 @@ import           Data.Word
 import           Ethereum.Common
 
 -- TODO: Remove a bunch of these dumb definitions.
-type Gas = Integer
-type Stack = [Word256]
-type Ether = Integer
-
-fromEther :: Integral a => Ether -> a
-fromEther = fromIntegral
 
 brange :: (Int, Int) -> B.ByteString -> B.ByteString
 brange (start, len) = B.take len . B.drop start

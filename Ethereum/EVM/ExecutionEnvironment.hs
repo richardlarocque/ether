@@ -38,7 +38,8 @@ data ExecutionEnvironment = EE {
         caller :: Address,
         value :: Integer,
         code :: B.ByteString,
-        blockHeader :: BlockHeader
+        blockHeader :: BlockHeader,
+        depth :: Int
 }
 
 intRange :: (Word256, Word256) -> (Int, Int)

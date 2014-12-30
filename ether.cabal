@@ -39,7 +39,9 @@ Library
       Ethereum.Crypto.Hash
       Ethereum.Crypto.Pubkey
       Ethereum.EVM.ExecutionEnvironment
-      Ethereum.EVM.InstructionSet
+      Ethereum.EVM.BlockEnvironment
+      Ethereum.EVM.Instruction
+      Ethereum.EVM.TransactionSubstate
       Ethereum.EVM.MachineState
       Ethereum.EVM.VM
       Ethereum.Encoding.HexPrefix

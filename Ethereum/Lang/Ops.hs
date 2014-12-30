@@ -8,7 +8,7 @@ import           Data.LargeWord
 import           Data.Monoid
 import           Data.Word
 import           Ethereum.Common
-import           Ethereum.EVM.InstructionSet
+import           Ethereum.EVM.Instruction
 
 type Builder = L.Builder
 

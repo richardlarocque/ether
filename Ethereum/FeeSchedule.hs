@@ -14,18 +14,30 @@ Translation of Ethereum Yellow Paper, Proof-of-Concept V, Section 9.3
 module Ethereum.FeeSchedule where
 
 -- Appendix B: Fee schedule
-step, stop, suicide, sha3, sload, sstore, balance, create, call :: Integer
-memory, txdata, transaction :: Integer
+step, balance, stop, suicide, sload, sset, sreset, sclear, create :: Integer
+createdata, call, exp, expbyte, memory, txdatazero, txdatanonzero :: Integer
+transaction, log, logdata, logtopic, sha3, sha3word, copy :: Integer
 
 step = 1
+balance = 20
 stop = 0
 suicide = 0
-sha3 = 20
 sload = 20
-sstore = 100
-balance = 20
+sset = 300
+sreset = 100
+sclear = 0
 create = 100
+createdata = 5
 call = 20
+exp = 1
+expbyte = 1
 memory = 1
-txdata = 5
+txdatazero = 1
+txdatanonzero = 5
 transaction = 500
+log = 1
+logdata = 1
+logtopic = 1
+sha3 = 10
+sha3word = 10
+copy = 1

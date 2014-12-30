@@ -6,15 +6,15 @@ import qualified Ethereum.FeeSchedule       as F
 import qualified Ethereum.State.Account     as A
 import           Ethereum.State.Transaction
 
-isGasValid :: Transaction -> Bool
-isGasValid t@(T _ _ _ gl _ _ _ _) = intrinsicGas t < gl
-
--- Equation (36)
-intrinsicGas :: Transaction -> Integer
-intrinsicGas (T _ _ _ _ (Left (MessageCall _ dat)) _ _ _) =
-        F.transaction + F.txdata * fromIntegral (B.length dat)
-intrinsicGas (T _ _ _ _ (Right (ContractCreation ini)) _ _ _) =
-        F.transaction + F.txdata * fromIntegral (B.length ini)
+-- isGasValid :: Transaction -> Bool
+-- isGasValid t@(T _ _ _ gl _ _ _ _) = intrinsicGas t < gl
+--
+-- -- Equation (36)
+-- intrinsicGas :: Transaction -> Integer
+-- intrinsicGas (T _ _ _ _ (Left (MessageCall _ dat)) _ _ _) =
+--         F.transaction + F.txdata * fromIntegral (B.length dat)
+-- intrinsicGas (T _ _ _ _ (Right (ContractCreation ini)) _ _ _) =
+--         F.transaction + F.txdata * fromIntegral (B.length ini)
 
 -- Equation (37)
 upFrontCost :: Transaction -> Integer
@@ -32,5 +32,5 @@ isTransactionValid t a =
         -- TODO: Check sender ID = account address
         isSignatureValid t &&
         isNonceValid t a &&
-        isGasValid t &&
+        -- isGasValid t &&
         isBalanceAvailable t a

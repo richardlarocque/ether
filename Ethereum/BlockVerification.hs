@@ -16,13 +16,13 @@ import           Ethereum.Storage.Context
 
 -- Equation 17.
 isConsistent :: Context -> Block -> Bool
-isConsistent c b = checkNonce && checkUncles && checkReceipts && checkState
+isConsistent c b = checkNonce && checkUncles && checkReceipts -- && checkState
         where checkNonce = (isBlockNonceValid . header) b
               checkUncles = isUnclesHashValid b
               checkReceipts = isReceiptHashValid b
-              checkState = case doBlockTransactions c b of
-                      Nothing -> False
-                      Just c' -> rootHash c' == (stateRoot . header) b
+--               checkState = case doBlockTransactions c b of
+--                       Nothing -> False
+--                       Just c' -> rootHash c' == (stateRoot . header) b
 
 receiptsToTrie :: [TransactionReceipt] -> Context
 receiptsToTrie rs =
@@ -32,9 +32,9 @@ receiptsToTrie rs =
             c0 = initContext
         in foldr (flip insertToTrie) c0 pairs
 
-doBlockTransactions :: Context -> Block -> Maybe Context
-doBlockTransactions c0 (Block bh rs _) =
-        foldM (doTransaction bh) c0 (map receiptTrans rs)
+-- doBlockTransactions :: Context -> Block -> Maybe Context
+-- doBlockTransactions c0 (Block bh rs _) =
+--         foldM (doTransaction bh) c0 (map receiptTrans rs)
 
 -- Equation 25.
 difficultyFromParent :: Integer -> BlockHeader -> Integer
