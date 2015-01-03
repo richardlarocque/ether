@@ -45,8 +45,8 @@ mc :: PrivateKey -> Integer -> Integer -> Integer -> Integer -> Address
    -> B.ByteString -> Transaction
 mc = initMessageCall
 
-validGasCheck :: String -> Transaction -> Bool -> TestTree
-validGasCheck s t e = testCase s $ e @=? isGasValid t
+-- validGasCheck :: String -> Transaction -> Bool -> TestTree
+-- validGasCheck s t e = testCase s $ e @=? isGasValid t
 
 nonceCheck :: String -> Transaction -> Account -> Bool -> TestTree
 nonceCheck s t a e = testCase s $ e @=? isNonceValid t a
@@ -70,9 +70,9 @@ tests = testGroup "Transaction" [ verifyTests, serializeTests ]
 verifyTests :: TestTree
 verifyTests = testGroup "Verify"
       [ testGroup "InitialGasCheck" [
-        validGasCheck "0"     (ccWithInitialGas 0)    False,
-        validGasCheck "10"    (ccWithInitialGas 10)   False,
-        validGasCheck "1000"  (ccWithInitialGas 1000) True
+---         validGasCheck "0"     (ccWithInitialGas 0)    False,
+---         validGasCheck "10"    (ccWithInitialGas 10)   False,
+---         validGasCheck "1000"  (ccWithInitialGas 1000) True
         ],
         testGroup "NonceCheck" [
         nonceCheck "ne"      (ccWithNonce  5) (accWithNonce  7)  False,
