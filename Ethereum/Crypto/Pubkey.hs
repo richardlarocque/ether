@@ -24,20 +24,24 @@ privateToAddress (Priv priv) =
 pubkeyToAddress :: S.CompressedPublicKey -> Address
 pubkeyToAddress pub =
     A $ fromIntegral $ (mask .&.) $ hashAsWord $ runPut $ put pub
-    where mask = (1 `shiftL` 20) - 1
+    where mask = (1 `shiftL` (20*8)) - 1
 
 signature :: Transaction -> (S.CompactSignature, Int)
 signature (T _ _ _ _ _ w r s) =
+  vrsToSignature (fromIntegral w, fromIntegral r, fromIntegral s)
+
+vrsToSignature :: (Int, Word256, Word256) -> (S.CompactSignature, Int)
+vrsToSignature (v, r, s) =
     let sigBytes = toNByteBigEndian 32 r `B.append` toNByteBigEndian 32 s
         compactSig = case runGet get sigBytes of
                        Left _ -> error "Parse failed"
                        Right x -> x
-        rId = case w of
+        rId = case v of
                 -- FIXME: This first case shouldn't be supported...
                 x | x >= 27 && x <= 30 -> x - 27
                 x | x >= 0  && x <= 4  -> x
                 _ -> error "Bad RecoveryID"
-    in (compactSig, fromInteger rId)
+    in (compactSig, rId)
 
 transactionHash :: Transaction -> B.ByteString
 transactionHash t = hashAsBytes $ runPut $ put $ unsignedTransactionRLP t

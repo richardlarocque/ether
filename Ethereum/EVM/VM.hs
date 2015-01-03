@@ -13,24 +13,24 @@ See Ethereum Yellow Paper, Proof-of-Concept V, Section 9
 
 module Ethereum.EVM.VM where
 
-import qualified Data.ByteString as B
+import qualified Data.ByteString                   as B
 import           Data.List
 
 --import           Ethereum.Crypto.Hash
-import           Ethereum.EVM.ExecutionEnvironment
-import           Ethereum.EVM.Instruction as E
-import           Ethereum.EVM.MachineState
-import qualified Ethereum.FeeSchedule as F
-import           Ethereum.Storage.Context
 import           Ethereum.EVM.BlockEnvironment
+import           Ethereum.EVM.ExecutionEnvironment
+import           Ethereum.EVM.Instruction          as E
+import           Ethereum.EVM.MachineState
 import           Ethereum.EVM.TransactionSubstate
+import qualified Ethereum.FeeSchedule              as F
+import           Ethereum.Storage.Context
 
 -- \Xi function from the yellow paper.
 -- Note that BlockEnvironment is a hidden input to that function.
 xiFunc :: BlockEnvironment -> Context -> Integer -> ExecutionEnvironment
       -> (Context, MachineState, TransactionSubstate, B.ByteString)
 xiFunc be sigma g i =
-  let (sigma', mu', a', i', o') = chiFunc be sigma mu a_0 i
+  let (sigma', mu', a', _i', o') = chiFunc be sigma mu a_0 i
   in (sigma', mu', a', o')
   where mu = MS g 0 initMem 0 []
 

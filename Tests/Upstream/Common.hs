@@ -4,13 +4,16 @@ import           Control.Monad
 import qualified Data.ByteString       as B
 import qualified Data.ByteString.Char8 as BC8
 import           Data.Either
+import           Data.LargeWord
 import           Data.List
+import           Data.Ratio
 import           Data.Word
+import           Ethereum.Common
 import           Numeric
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Text.JSON
-import Data.Ratio
+import           Text.Read
 
 testDataRoot :: String
 testDataRoot = "eth_tests/"
@@ -74,9 +77,15 @@ parseBytes str =
       Just x -> parseHex x
       Nothing -> Just $ BC8.pack str
 
+asString :: JSValue -> Maybe String
+asString (JSString s) = Just $ fromJSString s
+asString _ = Nothing
+
+parseWord256 :: JSValue -> Maybe Word256
+parseWord256 = liftM decode256be . parseHexString
+
 parseHexString :: JSValue -> Maybe B.ByteString
-parseHexString (JSString s) = parseHex $ fromJSString s
-parseHexString _ = Nothing
+parseHexString x = asString x >>= parseHex
 
 parseHex :: String -> Maybe B.ByteString
 parseHex hexStr =
@@ -95,8 +104,12 @@ mapJSArray _ _ = Nothing
 parseByteSequence :: JSValue -> Maybe [Word8]
 parseByteSequence = mapJSArray (liftM fromIntegral . parseInteger)
 
+eitherToMaybe :: Either l r -> Maybe r
+eitherToMaybe = either (const Nothing) Just
+
 parseInteger :: JSValue -> Maybe Integer
 parseInteger (JSRational _ x) | denominator x == 1 = Just $ numerator x
+parseInteger (JSString x) = eitherToMaybe $ readEither $ fromJSString x
 parseInteger _ = Nothing
 
 parseBool :: JSValue -> Maybe Bool

@@ -104,6 +104,7 @@ Test-suite ether_tests
       Tests.Upstream.Trie,
       Tests.Upstream.HexEncode,
       Tests.Upstream.RLP,
+      Tests.Upstream.KeyAddress,
       Tests.Helpers
       --Tests.TestData
 
