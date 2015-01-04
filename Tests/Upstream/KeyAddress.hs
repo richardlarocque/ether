@@ -15,12 +15,6 @@ import           Test.Tasty.HUnit
 import           Tests.Upstream.Common
 import           Text.JSON
 
-import           Debug.Trace
-
--- FIXME: These are failing for unknown reasons.
--- Not even the privkey to address conversion is working...
--- On the other hand, it seems none of the other clients are even running them.
-
 testPath :: String
 testPath = "BasicTests/"
 
@@ -43,9 +37,6 @@ parseKeyAddrTest val =
      sigEmpty <- lookup "sig_of_emptystring" assoc >>= parseSignature
      return (B8.pack seed, key, addr, sigEmpty)
 
-parseAddress :: JSValue -> Maybe Address
-parseAddress val = liftM (A . decode160be) $ parseHexString val
-
 parseSignature :: JSValue -> Maybe (S.CompactSignature, Int)
 parseSignature val =
   do assoc <- liftM fromJSObject $ asObject val
@@ -60,8 +51,11 @@ decode160be = fromNByteBigEndian 20
 makeTest :: (B.ByteString, PrivateKey, Address, (S.CompactSignature, Int)) -> Assertion
 makeTest (seed, key, addr, (cSig, rId)) =
   do Right key @=? asPrivateKey (hashAsWord seed)
+     --
      addr @=? privateToAddress key
-     let emptyHash = hashAsBytes B.empty
+     --
+     let emptyHash = hashAsBytes $ B.singleton 100
      let recovered = S.recoverPublic emptyHash cSig rId
      assertBool "KeyFromSig" $ isJust recovered
+     -- FIXME: This is broken.  Perhaps because of upstream secp?
      --Just addr @=? liftM pubkeyToAddress recovered

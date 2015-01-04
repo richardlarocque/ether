@@ -7,7 +7,6 @@ import qualified Data.ByteString            as B
 import           Data.LargeWord
 import           Data.Maybe
 import           Data.Serialize
-import           Debug.Trace
 import           Ethereum.Common
 import           Ethereum.Crypto.Hash
 import           Ethereum.State.Address
@@ -58,19 +57,15 @@ transactionSender t =
        return $ pubkeyToAddress pub
 
 -- Works because successful recovery implies valid signature.
+-- FIXME: Except that the upstream secp library seems to not do this.
 -- TODO: A better implementation should be possible...
 isSignatureValid :: Transaction -> Bool
 isSignatureValid = isJust . transactionSender
 
--- FIXME: THIS IS UNACCEPTABLE HACK!!!!!!
--- TODO: http://tools.ietf.org/html/rfc6979#section-4 ???
-badNonce :: S.Nonce
-(Right badNonce) = S.initNonce (B.replicate 32 0xab)
-
 signTransaction :: PrivateKey -> Transaction -> Maybe (Integer, Integer, Integer)
 signTransaction (Priv pr) t =
     do let h = transactionHash t
-       (cSig, rId) <- S.signCompact h pr badNonce
+       (cSig, rId) <- S.signCompact h pr
        let cSigBytes = runPut $ put cSig
        let (rBytes, sBytes) = B.splitAt 32 cSigBytes
        let (r, s) = (fromNByteBigEndian 32 rBytes, fromNByteBigEndian 32 sBytes)

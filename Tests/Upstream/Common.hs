@@ -1,14 +1,15 @@
 module Tests.Upstream.Common where
 
 import           Control.Monad
-import qualified Data.ByteString       as B
-import qualified Data.ByteString.Char8 as BC8
+import qualified Data.ByteString        as B
+import qualified Data.ByteString.Char8  as BC8
 import           Data.Either
 import           Data.LargeWord
 import           Data.List
 import           Data.Ratio
 import           Data.Word
 import           Ethereum.Common
+import           Ethereum.State.Address
 import           Numeric
 import           Test.Tasty
 import           Test.Tasty.HUnit
@@ -86,6 +87,13 @@ parseWord256 = liftM decode256be . parseHexString
 
 parseHexString :: JSValue -> Maybe B.ByteString
 parseHexString x = asString x >>= parseHex
+
+parseAddress :: JSValue -> Maybe Address
+parseAddress val = asString val >>= parseAddress'
+
+parseAddress' :: String -> Maybe Address
+parseAddress' val = liftM (A . decode160be) $ parseHex val
+  where decode160be = fromNByteBigEndian 20
 
 parseHex :: String -> Maybe B.ByteString
 parseHex hexStr =
