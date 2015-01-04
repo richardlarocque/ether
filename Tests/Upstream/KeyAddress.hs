@@ -3,6 +3,7 @@ module Tests.Upstream.KeyAddress(tests) where
 import           Control.Monad
 import           Crypto.Secp256k1       as S
 import qualified Data.ByteString        as B
+import qualified Data.ByteString.Char8  as B8
 import           Data.LargeWord
 import           Data.Maybe
 import           Ethereum.Common
@@ -31,7 +32,7 @@ tests = liftM (groupDataTests "KeyAddr") $ sequence [
   readTestsFromFile "KeyAddr" (mkPath "keyaddrtest.json")
   (liftM makeTest . parseKeyAddrTest)]
 
-parseKeyAddrTest :: JSValue -> Maybe (String, PrivateKey, Address, (S.CompactSignature, Int))
+parseKeyAddrTest :: JSValue -> Maybe (B.ByteString, PrivateKey, Address, (S.CompactSignature, Int))
 parseKeyAddrTest val =
   do obj <- asObject val
      let assoc = fromJSObject obj
@@ -40,7 +41,7 @@ parseKeyAddrTest val =
      key <- either (const Nothing) Just (asPrivateKey key0)
      addr <- lookup "addr" assoc >>= parseAddress
      sigEmpty <- lookup "sig_of_emptystring" assoc >>= parseSignature
-     return (seed, traceShow ("key0", key0) key, addr, sigEmpty)
+     return (B8.pack seed, key, addr, sigEmpty)
 
 parseAddress :: JSValue -> Maybe Address
 parseAddress val = liftM (A . decode160be) $ parseHexString val
@@ -56,10 +57,11 @@ parseSignature val =
 decode160be :: B.ByteString -> Word160
 decode160be = fromNByteBigEndian 20
 
-makeTest :: (String, PrivateKey, Address, (S.CompactSignature, Int)) -> Assertion
-makeTest (_seed, key, addr, (cSig, rId)) =
-  do traceShow (_seed, addr, (cSig, rId)) $ addr @=? privateToAddress key
+makeTest :: (B.ByteString, PrivateKey, Address, (S.CompactSignature, Int)) -> Assertion
+makeTest (seed, key, addr, (cSig, rId)) =
+  do Right key @=? asPrivateKey (hashAsWord seed)
+     addr @=? privateToAddress key
      let emptyHash = hashAsBytes B.empty
-     let recovered = S.recoverPublicC emptyHash cSig rId
+     let recovered = S.recoverPublic emptyHash cSig rId
      assertBool "KeyFromSig" $ isJust recovered
-     Just addr @=? liftM pubkeyToAddress recovered
+     --Just addr @=? liftM pubkeyToAddress recovered

@@ -7,23 +7,27 @@ import qualified Data.ByteString            as B
 import           Data.LargeWord
 import           Data.Maybe
 import           Data.Serialize
+import           Debug.Trace
 import           Ethereum.Common
 import           Ethereum.Crypto.Hash
 import           Ethereum.State.Address
 import           Ethereum.State.Transaction
 
 data PrivateKey = Priv S.SecretKey
+                  deriving (Show, Eq)
 
 asPrivateKey :: Word256 -> Either String PrivateKey
 asPrivateKey = liftM Priv . S.initSecretKey . encode256be
 
 privateToAddress :: PrivateKey -> Address
 privateToAddress (Priv priv) =
-    pubkeyToAddress $ fromJust $ S.createPublicKeyC priv
+    pubkeyToAddress $ fromJust $ S.createPublicKey priv
 
-pubkeyToAddress :: S.CompressedPublicKey -> Address
+-- TODO(spec): Why is B.tail necessary?
+-- PyEthereum does it this way, but I don't know why.
+pubkeyToAddress :: S.PublicKey -> Address
 pubkeyToAddress pub =
-    A $ fromIntegral $ (mask .&.) $ hashAsWord $ runPut $ put pub
+    A $ fromIntegral $ (mask .&.) $ hashAsWord $ B.tail $ runPut $ put pub
     where mask = (1 `shiftL` (20*8)) - 1
 
 signature :: Transaction -> (S.CompactSignature, Int)
@@ -50,7 +54,7 @@ transactionSender :: Transaction -> Maybe Address
 transactionSender t =
     do let (cSig, rId) = signature t
        let h = transactionHash t
-       pub <- S.recoverPublicC h cSig rId
+       pub <- S.recoverPublic h cSig rId
        return $ pubkeyToAddress pub
 
 -- Works because successful recovery implies valid signature.
@@ -59,6 +63,7 @@ isSignatureValid :: Transaction -> Bool
 isSignatureValid = isJust . transactionSender
 
 -- FIXME: THIS IS UNACCEPTABLE HACK!!!!!!
+-- TODO: http://tools.ietf.org/html/rfc6979#section-4 ???
 badNonce :: S.Nonce
 (Right badNonce) = S.initNonce (B.replicate 32 0xab)
 
