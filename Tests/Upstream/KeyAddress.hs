@@ -45,9 +45,6 @@ parseSignature val =
      s <- parseInteger =<< lookup "s" assoc
      return $ vrsToSignature (fromIntegral v, fromIntegral r, fromIntegral s)
 
-decode160be :: B.ByteString -> Word160
-decode160be = fromNByteBigEndian 20
-
 makeTest :: (B.ByteString, PrivateKey, Address, (S.CompactSignature, Int)) -> Assertion
 makeTest (seed, key, addr, (cSig, rId)) =
   do Right key @=? asPrivateKey (hashAsWord seed)
