@@ -17,7 +17,7 @@ import           Text.JSON
 import           Text.Read
 
 testDataRoot :: String
-testDataRoot = "eth_tests/"
+testDataRoot = "upstream_tests/"
 
 groupDataTests :: String -> [Either String TestTree] -> Either String TestTree
 groupDataTests label ts =

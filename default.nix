@@ -11,7 +11,6 @@ pkgs.haskellngPackages.mkDerivation {
     array
     largeword
     containers
-    cabal-install
     vector
     cryptohash
     crypto-random
